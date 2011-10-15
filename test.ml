@@ -30,7 +30,9 @@ let captureVertices inputFile nb_vertices =
 				(float_of_string z));
 	  captureNextVertice (n+1);
 	| _ -> captureNextVertice n;
-    with End_of_file -> close_in inputFile;
+    with 
+      | End_of_file -> close_in inputFile;
+      | _ -> ();
   in
   captureNextVertice 0;
   vertices;
@@ -205,7 +207,7 @@ let rec mainLoop screen model =
 ;;
 
 (* Setup the screen *)
-let main () =
+let glscreen () =
   Sdl.init [`EVERYTHING];
   Sdlwm.set_caption ~title:"AutoMap" ~icon:"";
   let screen = Sdlvideo.set_video_mode 500 500 [`OPENGL; `DOUBLEBUF] in
@@ -284,43 +286,62 @@ let write_vertex x y z file =
 			(string_of_float x) ^ " " ^
 			(string_of_float y) ^ " " ^
 			(string_of_float z) ^ "\n")
-
+    
 let write_face v1 v2 v3 file =
   output_string file ("f " ^
 			(string_of_int v1) ^ " " ^
 			(string_of_int v2) ^ " " ^
 			(string_of_int v3) ^ "\n")
+    
+(* let write_face v1 v2 v3 v4 file =
+   output_string file ("f " ^
+   (string_of_int v1) ^ " " ^
+   (string_of_int v2) ^ " " ^
+   (string_of_int v3) ^ " " ^
+   (string_of_int v4) ^ "\n") *)
+    
+let upperL x y n = 2*y*n+x-y+1
+let upperR x y n = (upperL x y n)+1
+let mid x y n = (2*y+1)*n+x-y+1
+let bottomL x y n = (2*y+2)*n+x-y
+let bottomR x y n = (bottomL x y n)+1 
+  
+(* let upperL x y n = y*n+x+1
+   let upperR x y n = y*n+x+2
+   let bottomL x y n = (y+1)*n+x+1
+   let bottomR x y n = (y+1)*n+x+2 *)
 
 let trace_points hp w h outputFile =
   let file = open_out outputFile in 
-    for y=0 to (h/hp) do
-      for x=0 to (w/hp) do
-	write_vertex (float (x*hp)) (float (y*hp)) 0. file;
-      done;
-    done;
-    for y=0 to (h/hp)-1 do
-      for x=0 to (w/hp)-1 do
-	write_vertex 
-	  (float (x*hp) +. float hp /. 2.)
-	  (float (y*hp) +. float hp /. 2.)
-	  0. file;
-      done;
+    for y=0 to (h/hp)*2 do
+      if (y mod 2 == 0) then
+	begin
+	  for x=0 to (w/hp) do
+	    write_vertex (float (x*hp)) 0. (float (y/2*hp)) file;
+	  done;
+	end
+      else
+	begin
+	  for x=0 to (w/hp)-1 do
+	    write_vertex 
+	      (float (x*hp) +. (float hp) /. 2.) 
+	      0.
+	      (float (y/2*hp) +. (float hp) /. 2.) 
+	      file;
+	  done;
+	end
     done;
     let n = (w/hp) in
-      for y=0 to n do
-	for x=0 to n do
-	  write_face (2*y*(n-1)+x-y+1) (2*y*(n-1)+x-y+2)
-	    ((2*y+1)*(n-1)+x-y+1) file;
-	  write_face ((2*y+2)*(n-1)+x-y) ((2*y+2)*(n-1)+x-y+1)
-	    ((2*y+1)*(n-1)+x-y+1) file;
-	  write_face (2*y*(n-1)+x-y+1) ((2*y+1)*(n-1)+x-y+1)
-	    ((2*y+2)*(n-1)+x-y) file;
-	  write_face (2*y*(n-1)+x-y+2) ((2*y+1)*(n-1)+x-y+1)
-	    ((2*y+2)*(n-1)+x-y+1) file;
+      for y=0 to (h/hp)-1 do
+	for x=0 to n-1 do
+	  write_face (upperL x y (n+1)) (mid x y (n+1)) (upperR x y (n+1)) file;
+	  write_face (upperR x y (n+1)) (mid x y (n+1)) (bottomR x y (n+1)) file;
+	  write_face (bottomR x y (n+1)) (mid x y (n+1)) (bottomL x y (n+1)) file;
+	  write_face (bottomL x y (n+1)) (mid x y (n+1)) (upperL x y (n+1)) file;
 	done;
       done;
       close_out file
-
+	    
 let printImage image =
   sdlInit image
     
@@ -388,6 +409,7 @@ let sdlLaunch openpic picborder picquad savepic pic3d () =
 				       generate_obj w h;
 				       glscreen ());
     ()
+
 
 let _ =
   window#connect#destroy ~callback:GMain.quit;
