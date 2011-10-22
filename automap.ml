@@ -651,11 +651,11 @@ let apply_sobel_mask src dst =
 	    done
 	  done;
 	  let length = sqrt (float_of_int (pow !grad_v 2 + pow !grad_h 2)) in
-	    if length < 35. then
+	    if length < 40. then
 	      Sdlvideo.put_pixel_color dst i j Sdlvideo.black
 	    else
 	      begin
-		if length > 40. then
+		if length > 45. then
 		  Sdlvideo.put_pixel_color dst i j Sdlvideo.white
 		else
 		  begin
