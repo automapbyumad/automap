@@ -1,7 +1,8 @@
+(*------------------------------ 80 characters -------------------------------*)
+
 let _ = GMain.init ()
 
-(*------------------------------ 80 caracters --------------------------------*)
-
+(*------------------------------- 3D ENGINE ----------------------------------*)
 (* Depencies :
 #directory "+lablGL";;
 #directory "+sdl";;
@@ -246,105 +247,166 @@ let glscreen () =
 	Sdl.quit ();
 ;;
 
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
-(* FIN DU MOTEUR 3D *)
+(*------------------------------ GLOBALS VARS --------------------------------*)
+let step = ref 20
+let list_color = ref []
+let list_height = ref []
+let array_tb = ref (Array.make 0 (GEdit.entry ()))
+let border_clicked = ref false
 
-let pas = ref 20
+(*------------------------ LABLGTK GRAPHIC INTERFACE -------------------------*)
 
+(* Main window *)
+let main_window = GWindow.window
+  ~resizable:false
+  ~title:"AutoMap"
+  ~width:800
+  ~height:600 ()
+
+(* Vbox1 -contains- bbox1 & image *)
+let vbox1 = GPack.vbox
+  ~border_width:15
+  ~packing:main_window#add ()
+
+(* Bbox1 -contains- main buttons *)
+let bbox1 = GPack.button_box `HORIZONTAL
+  ~layout:`SPREAD
+  ~packing:(vbox1#pack ~expand:false) ()
+
+(* Main buttons *)
+let btn_border = GButton.button
+  ~label:"Border"
+  ~packing:bbox1#add ()
+
+let btn_grid = GButton.button
+  ~label:"Grid"
+  ~packing:bbox1#add ()
+
+let btn_3d = GButton.button
+  ~label:"Relief"
+  ~packing:bbox1#add ()
+
+let btn_open = GFile.chooser_button
+  ~action:`OPEN
+  ~packing:bbox1#add ()
+
+let btn_save = GButton.button
+  ~label:"Save"
+  ~packing:bbox1#add ()
+let save_image = GMisc.image
+  ~stock:`SAVE
+  ~packing:btn_save#set_image ()
+
+let btn_settings = GButton.button
+  ~label:"Settings"
+  ~packing:bbox1#add ()
+let settings_image = GMisc.image
+  ~stock:`PREFERENCES
+  ~packing:btn_settings#set_image ()
+
+let btn_reset = GButton.button
+  ~label:"Reset"
+  ~packing:bbox1#add ()
+let reset_image = GMisc.image
+  ~stock:`REFRESH
+  ~packing:btn_reset#set_image ()
+
+(* Image *)
+let image_box = GMisc.image
+  ~packing:vbox1#add ()
+  
+(* Settings window *)
+let settings_window = GWindow.window
+  ~title:"Settings"
+  ~resizable:false
+  ~position:`CENTER
+  ~width:280
+  ~height:360 ()
+
+(* Vbox2 -contains- hbox2, vbox3, bbox2 *)
+let vbox2 = GPack.vbox
+  ~packing:settings_window#add ()
+
+(* Hbox2 -contains- Grid step input *)
+let hbox2 = GPack.hbox
+  ~packing:vbox2#add ()
+ 
+let label_gridstep = GMisc.label
+  ~text:"Grid step : "
+  ~packing:hbox2#add ()
+  
+let input_gridstep = GEdit.entry 
+  ~max_length:3
+  ~packing:hbox2#add ()
+
+let label_px = GMisc.label
+  ~text:" px."
+  ~packing:hbox2#add ()
+
+(* Vbox3 -contains- Height <=> Color input *)
+let vbox3 = GPack.vbox
+  ~packing:vbox2#add ()
+
+(* Bbox2 -contains- Ok button *)
+let bbox2 = GPack.button_box `HORIZONTAL
+  ~packing:vbox2#add () 
+
+let btn_ok = GButton.button
+  ~packing:bbox2#add ()
+let ok_image = GMisc.image
+  ~stock:`OK
+  ~packing:btn_ok#set_image ()
+
+(*------------------------------ MAIN FUNCTIONS ------------------------------*)
+
+(* Border *)
 let is_color_in_range c1 c2 range =
   let (r1, g1, b1) = c1 and (r2, g2, b2) = c2 in
     r1 <= r2 + range && r1 >= r2 - range &&
     g1 <= g2 + range && g1 >= g2 - range &&
     b1 <= b2 + range && b1 >= b2 - range
 
-let list_color = ref []
-let list_height = ref []
-
-let printContour path =
+let print_border src dst =
   let seuil = 20 in
-  let image = Sdlloader.load_image path in
-  let x, y, z = Sdlvideo.surface_dims image in
-  for i = 0 to x-1 do
-    for j = 0 to y-1 do
-      let pix1 = Sdlvideo.get_pixel_color image i j in
-      let pix2 = Sdlvideo.get_pixel_color image (i+1) j in
-      let pix3 = Sdlvideo.get_pixel_color image i (j+1) in
-      if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
-	begin
-	  if not(List.exists (fun x -> x = pix1) !list_color) then
-	    list_color := (pix1::!list_color);
-	  Sdlvideo.put_pixel_color image i j Sdlvideo.black  
-	end;
-      if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
-	begin
-	  if not(List.exists (fun x -> x = pix1) !list_color) then
-	    list_color := (pix1::!list_color);
-	  Sdlvideo.put_pixel_color image i j Sdlvideo.black
-	end;
-    done;
-  done;
-  image
- 
-let rec generate_height = function 
-  | 0 -> []
-  | n -> (n*10)::generate_height (n-1)
-   
-let pick_color img h w = 
-  let list = ref [] in
-  for j=0 to (h-1) do
-    for i=0 to (w-1) do
-      let pix = Sdlvideo.get_pixel_color img i j in
-      if not (List.exists (fun x -> is_color_in_range x pix 100) !list) then 
-	list := (pix::!list)
-    done
-  done; 
-  list
-    
-let rec sdlInit image  =
-  Sdl.init [`VIDEO];
-  let (w, h, p) = Sdlvideo.surface_dims image in
-  let screen = Sdlvideo.set_video_mode w h [`DOUBLEBUF] in
-  let position = Sdlvideo.rect 0 0 w h in
-    Sdlvideo.blit_surface ~dst_rect:position ~src:image ~dst:screen ();
-    Sdlvideo.flip screen 
-	   
-let printQuad path h =
-  let image = Sdlloader.load_image path in
-  let w, he, d = Sdlvideo.surface_dims image in
-    for y=0 to (he/h)-1 do
-      for x=0 to (w/h)-1 do
-	for i=0 to h do
-	  Sdlvideo.put_pixel_color image ((x*h)+i) (y*h) Sdlvideo.black;
-	  Sdlvideo.put_pixel_color image (x*h) ((y*h)+i) Sdlvideo.black;
-	  Sdlvideo.put_pixel_color image ((x*h)+i) ((y*h)+i) Sdlvideo.black;
-	  Sdlvideo.put_pixel_color image ((x*h)+i) ((y*h)+h-i) Sdlvideo.black;
-	  Sdlvideo.put_pixel_color image ((x*h)+h) ((y*h)+i)
-	    Sdlvideo.black;
-	  Sdlvideo.put_pixel_color image ((x*h)+i) ((y*h)+h) Sdlvideo.black;
+  let x, y, z = Sdlvideo.surface_dims src in
+    for i = 0 to x-1 do
+	for j = 0 to y-1 do
+	  let pix1 = Sdlvideo.get_pixel_color src i j in
+	  let pix2 = Sdlvideo.get_pixel_color src (i+1) j in
+	  let pix3 = Sdlvideo.get_pixel_color src i (j+1) in
+	    if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
+	      begin
+		if not(List.exists (fun x -> x = pix1) !list_color) then
+		  list_color := (pix1::!list_color);
+		Sdlvideo.put_pixel_color dst i j Sdlvideo.black  
+	      end;
+	    if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
+	      begin
+		if not(List.exists (fun x -> x = pix1) !list_color) then
+		  list_color := (pix1::!list_color);
+		Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+	      end;
+	done;
+      done;
+    dst
+
+(* Grid *)
+(* e = step *)
+let print_grid src dst e =
+  let w, h, _ = Sdlvideo.surface_dims src in
+    for y=0 to (h/e)-1 do
+      for x=0 to (w/e)-1 do
+	for i=0 to e do
+	  Sdlvideo.put_pixel_color dst ((x*e)+i) (y*e) Sdlvideo.black;
+	  Sdlvideo.put_pixel_color dst (x*e) ((y*e)+i) Sdlvideo.black;
+	  Sdlvideo.put_pixel_color dst ((x*e)+i) ((y*e)+i) Sdlvideo.black;
+	  Sdlvideo.put_pixel_color dst ((x*e)+i) (((y+1)*e)-i) Sdlvideo.black;
+	  Sdlvideo.put_pixel_color dst (((x+1)*e)) ((y*e)+i) Sdlvideo.black;
+	  Sdlvideo.put_pixel_color dst ((x*e)+i) ((y+1)*e) Sdlvideo.black;
 	done;
       done;
     done;
-  image
+  dst
     
 let write_vertex x y z file =
   output_string file ("v " ^ 
@@ -358,24 +420,11 @@ let write_face v1 v2 v3 file =
 			(string_of_int v2) ^ " " ^
 			(string_of_int v3) ^ "\n")
     
-(* let write_face v1 v2 v3 v4 file =
-   output_string file ("f " ^
-   (string_of_int v1) ^ " " ^
-   (string_of_int v2) ^ " " ^
-   (string_of_int v3) ^ " " ^
-   (string_of_int v4) ^ "\n") *)
-    
 let upperL x y n = 2*y*n+x-y+1
 let upperR x y n = (upperL x y n)+1
 let mid x y n = (2*y+1)*n+x-y+1
 let bottomL x y n = (2*y+2)*n+x-y
 let bottomR x y n = (bottomL x y n)+1 
-  
-(* let upperL x y n = y*n+x+1
-   let upperR x y n = y*n+x+2
-   let bottomL x y n = (y+1)*n+x+1
-   let bottomR x y n = (y+1)*n+x+2 *)
-
 
 let indexof list x =
   let rec indexofrec list x acc = match list with
@@ -384,240 +433,144 @@ let indexof list x =
     | e::l -> indexofrec l x acc+1 in
     indexofrec list x 0
 
-let get_height color listc listh = List.nth listh (indexof listc color)
+let get_height color = List.nth !list_height (indexof !list_color color)
 
-let trace_points hp w h outputFile img =
-  let file = open_out outputFile in 
-    for y=0 to (h/hp)*2 do
+let trace_points step w h output_file img =
+  let file = open_out output_file in 
+    for y=0 to (h/step)*2 do
       if (y mod 2 == 0) then
-	begin
-	  for x=0 to (w/hp) do
-	    let height = get_height (Sdlvideo.get_pixel_color img
-				       (x*hp) (y/2*hp)) !list_color !list_height in
-	      write_vertex (float (x*hp)) (float height) (float (y/2*hp)) file;
-	  done;
-	end
+	for x=0 to (w/step) do
+	  let height =
+	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
+	    write_vertex (float (x*step)) (float height) (float (y/2*step)) file
+	done
       else
-	begin
-	  for x=0 to (w/hp)-1 do
-	    let height = get_height (Sdlvideo.get_pixel_color img
-				       (x*hp) (y/2*hp)) !list_color !list_height in
-	      write_vertex 
-		(float (x*hp) +. (float hp) /. 2.) 
-		(float height)
-		(float (y/2*hp) +. (float hp) /. 2.) 
-		file;
-	  done;
-	end
+	for x=0 to (w/step)-1 do
+	  let height =
+	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
+	    write_vertex 
+	      (float (x*step) +. (float step) /. 2.) 
+	      (float height)
+	      (float (y/2*step) +. (float step) /. 2.) 
+	      file;
+	done;
     done;
-    let n = (w/hp) in
-      for y=0 to (h/hp)-1 do
+    let n = (w/step) in
+      for y=0 to (h/step)-1 do
 	for x=0 to n-1 do
-	  write_face (upperL x y (n+1)) (mid x y (n+1)) (upperR x y (n+1)) file;
-	  write_face (upperR x y (n+1)) (mid x y (n+1)) (bottomR x y (n+1)) file;
-	  write_face (bottomR x y (n+1)) (mid x y (n+1)) (bottomL x y (n+1)) file;
-	  write_face (bottomL x y (n+1)) (mid x y (n+1)) (upperL x y (n+1)) file;
+	  write_face
+	    (upperL x y (n+1)) (mid x y (n+1)) (upperR x y (n+1)) file;
+	  write_face
+	    (upperR x y (n+1)) (mid x y (n+1)) (bottomR x y (n+1)) file;
+	  write_face
+	    (bottomR x y (n+1)) (mid x y (n+1)) (bottomL x y (n+1)) file;
+	  write_face
+	    (bottomL x y (n+1)) (mid x y (n+1)) (upperL x y (n+1)) file;
 	done;
       done;
       close_out file
-	    
-let printImage image =
-  sdlInit image
-    
-let save image =
-  Sdlvideo.save_BMP image "resultat.bmp"
 
-let save_as image path =
-  Sdlvideo.save_BMP image path
+(* Misc Functions *)
+let rec generate_height = function 
+  | -1 -> []
+  | n -> (n*10)::generate_height (n-1)
+
+let save_as src path =
+  Sdlvideo.save_BMP src path
+
+let save path =
+  Sdlvideo.save_BMP (Sdlloader.load_image "temp.bmp") path
     
-let get_string = function 
+let get_string = function
   | Some x -> x
   | _ -> raise Not_found
 
 let recup_int input () =
-  let text = input#text in
-  try 
-    pas := int_of_string text;
-  with 
-    | _ -> pas := 20
+  let text = input_gridstep#text in
+  try
+    step := int_of_string text;
+  with
+    | _ -> step := 20
 
-let window = GWindow.window
-  ~resizable:false
-  ~title:"AutoMap"
-  ~width:800
-  ~height:600 ()
+let generate_obj w h pas img =
+  trace_points pas w h "test.obj" img
 
-let vbox1 = GPack.vbox
-  ~border_width:15
-  ~packing:window#add ()
-
-let bbox1 = GPack.button_box `HORIZONTAL
-  ~layout:`SPREAD
-  ~packing:(vbox1#pack ~expand:false) ()
-
-let pic_borderline = GButton.button
-  ~label:"Contours"
-  ~packing:bbox1#add ()
-
-let pic_cut = GButton.button
-  ~label:"Quadrillage"
-  ~packing:bbox1#add ()
-
-let pic_3d = GButton.button
-  ~label:"Relief"
-  ~packing:bbox1#add ()
-
-let open_pic = GFile.chooser_button
-    ~action:`OPEN
-    ~packing:bbox1#add ()
-
-let save_pic = GButton.button
-  ~label:"Sauvegarder"
-  ~packing:bbox1#add ()
-
-let reset_pic = GButton.button
-  ~label:"Reset"
-  ~packing:bbox1#add ()
-
-let image_pic = GMisc.image
-    ~packing:vbox1#add ()
-
-(* Boite de dialogue *)
-
-let window2 = GWindow.window
-  ~title:"Options"
-  ~resizable:true
-  ~position:`CENTER
-  ~width:280
-  ~height:360
-  ~show:false ()
-
-let vbox2 = GPack.vbox
-  ~packing:window2#add ()
-  
-let hbox2 = GPack.hbox
-  ~packing:vbox2#add ()
-  
-let hbox3 = GPack.hbox
-  ~packing:vbox2#add ()
-
-let text_pas = GMisc.label
-  ~text:"Le pas : "
-  ~packing:hbox2#add ()
-  
-let input_pas = GEdit.entry 
-  ~text:"" 
-  ~max_length:3
-  ~width:40
-  ~packing:hbox2#add ()
-  
-let text_px = GMisc.label
-  ~text:"px"
-  ~xpad:5
-  ~packing:hbox2#add ()
-
-let txt_border = GMisc.label
-  ~text:"width :"
-  ~xpad:5
-  ~packing:hbox3#add ()
-
-let input_border_width = GEdit.entry
-  ~text:""
-  ~max_length:2
-  ~width:40
-  ~packing:hbox3#add ()
-
-let text_px1 = GMisc.label
-  ~text:"px"
-  ~xpad:5
-  ~packing:hbox3#add ()
-
-let vbox3 = GPack.vbox
-  ~packing:vbox2#add ()
-  
-let bbox2 = GPack.button_box `HORIZONTAL
-  ~packing:vbox2#add () 
-
-let ok_button = GButton.button
-  ~label:"OK"
-  ~packing:bbox2#add ()
-
-let option_button = GButton.button
-  ~label:"Options"
-  ~packing:bbox1#add ()
-  
-(* Creation des textbox pour les couleurs *)
-
+(* Height <> Colors textboxes *)
 let triple2string (r,g,b) =
   "(" ^ string_of_int r ^ ", " ^
     string_of_int g ^ ", " ^
     string_of_int b ^ ")"
 
 let generate_textbox () =
-  let length = List.length !list_color in
-  let listtb = Array.make length (GEdit.entry ()) in
-    for i=0 to length-1 do
-      let hboxt = GPack.hbox ~packing:vbox3#add () in
-      let lablt = GMisc.label ~text:(triple2string (List.nth !list_color i))
-	~packing:hboxt#add () in
-      let entryt = GEdit.entry ~packing:hboxt#add () in
-      ignore(lablt);
-	listtb.(i) <- entryt;
-    done;
-    listtb
+  if not(!border_clicked) then
+      let length = List.length !list_color in
+	array_tb := Array.make length (GEdit.entry ());
+      for i=0 to length-1 do
+	let hboxt = GPack.hbox ~packing:vbox3#add () in
+	let lablt = GMisc.label ~text:(triple2string (List.nth !list_color i))
+	  ~packing:hboxt#add () in
+	let entryt = GEdit.entry ~packing:hboxt#add () in
+	  ignore(lablt);
+	  !array_tb.(i) <- entryt;
+	  border_clicked := true;
+      done
+
+(* Button functions *)
+let on_reset src =
+  save_as src "temp.bmp";
+  image_box#set_file "temp.bmp";
+  ()
+
+let on_border src =
+  let dst = Sdlloader.load_image "temp.bmp" in
+    save_as (print_border src dst) "temp.bmp";
+    image_box#set_file "temp.bmp";
+    (* ignore(generate_textbox ()); *)
+    list_height := generate_height ((List.length !list_color)-1);
+    ()
       
-let generate_obj w h pas img = 
-  trace_points pas w h "test.obj" img
-	
-let on_reset image =
-  save_as image "resultat.bmp";
-  image_pic#set_file "resultat.bmp";
-  ()
+let on_grid src =
+  let dst = Sdlloader.load_image "temp.bmp" in
+    save_as (print_grid src dst (!step)) "temp_grid.bmp";
+    image_box#set_file "temp_grid.bmp";
+    ()
 
-let rec print_list = function
-  | [] -> ()
-  | e::l -> print_endline (string_of_int e); print_list l
-
-let on_border path =
-  save_as (printContour path) "contour.bmp";
-  image_pic#set_file "contour.bmp";
-  ignore(generate_textbox ());
-  list_height := generate_height (List.length !list_color) ;
-  print_list !list_height ;
-  ()
-
-let on_cut () =
-  save (printQuad "contour.bmp" !pas);
-  image_pic#set_file "resultat.bmp";
-  ()
-
-let on_relief image =
-  let (w, h, _) = Sdlvideo.surface_dims image in
-    generate_obj w h !pas image;
+let on_relief src =
+  let (w, h, _) = Sdlvideo.surface_dims src in
+    generate_obj w h !step src;
     glscreen ();
     ()
 
-let sdlLaunch () = 
-  let path = get_string open_pic#filename in
-  let image = Sdlloader.load_image path in
-    save_as image "contour.bmp";
-    image_pic#set_file path;
-    ignore(reset_pic#connect#clicked ~callback:(fun _ -> on_reset image));
-    ignore(pic_borderline#connect#clicked ~callback:(fun _ -> on_border path));
-    ignore(pic_cut#connect#clicked ~callback:(fun _ -> on_cut ())); 
-    ignore(save_pic#connect#clicked ~callback:(fun _ -> save image));
-    ignore(pic_3d#connect#clicked ~callback:(fun _ -> on_relief image));
+(* ================================= MAIN =================================== *)
+let sdl_launch () = 
+  let path = get_string btn_open#filename in
+  let src = Sdlloader.load_image path in
+    image_box#set_file path;
+    save_as src "temp.bmp";
+    ignore(btn_reset#connect#clicked
+	     ~callback:(fun _ -> on_reset src));
+    ignore(btn_border#connect#clicked
+	     ~callback:(fun _ -> on_border src));
+    ignore(btn_grid#connect#clicked
+	     ~callback:(fun _ -> on_grid src)); 
+    ignore(btn_save#connect#clicked
+	     ~callback:(fun _ -> save path));
+    ignore(btn_3d#connect#clicked
+	     ~callback:(fun _ -> on_relief src));
     ()
       
 (* Main *)
-let main () =
-  ignore(window#connect#destroy ~callback:GMain.quit);
-  ignore(input_pas#connect#changed ~callback:(recup_int input_pas));
-  ignore(window2#event#connect#delete ~callback:(fun _ -> window2#misc#hide (); true));
-  ignore(ok_button#connect#clicked ~callback:(fun _ -> window2#misc#hide ()));
-  ignore(option_button#connect#clicked ~callback:(fun _ -> window2#misc#show ()));
-  ignore(open_pic#connect#selection_changed (fun _ -> sdlLaunch ()));
-  window#show ();
+let _ =
+  ignore(main_window#connect#destroy
+	   ~callback:GMain.quit);
+  ignore(input_gridstep#connect#changed
+	   ~callback:(recup_int input_gridstep));
+  ignore(settings_window#event#connect#delete
+	   ~callback:(fun _ -> settings_window#misc#hide (); true));
+  ignore(btn_ok#connect#clicked
+	   ~callback:(fun _ -> settings_window#misc#hide ()));
+  ignore(btn_settings#connect#clicked
+	   ~callback:(fun _ -> settings_window#misc#show ()));
+  ignore(btn_open#connect#selection_changed (fun _ -> sdl_launch ()));
+  main_window#show ();
   GMain.main ()
-    
-let _ = main () 
