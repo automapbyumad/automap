@@ -111,7 +111,7 @@ let rec drawFace vertices = function
     let (x, y, z) = vertices.(e-1) in
     let c = (y+.1.0)/.2.0 in
     GlDraw.color (1., c, c);
-    GlTex.coord2 (z, x);
+    GlTex.coord2 (x, z);
     GlDraw.vertex3 (x, y, z);
     drawFace vertices l;
 ;;
@@ -216,14 +216,11 @@ let glscreen () =
     enableShadedMode ();
     
     let green = GlTex.gen_texture () in
-    let image = Sdlloader.load_image "green.jpg" in
+    let image = Sdlloader.load_image "temp.bmp" in
     let (w, h, _) = Sdlvideo.surface_dims image in
     let tex = Sdlgl.to_raw image in
       GlTex.bind_texture `texture_2d green;
       GlTex.image2d (GlPix.of_raw tex `rgb w h);
-      
-      GlTex.parameter `texture_2d (`wrap_s `clamp);
-      GlTex.parameter `texture_2d (`wrap_t `clamp);
       
       GlTex.parameter `texture_2d (`min_filter `linear);
       GlTex.parameter `texture_2d (`mag_filter `linear);
@@ -475,16 +472,20 @@ let trace_points step w h output_file img =
 	for x=0 to (w/step) do
 	  let height =
 	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
-	    write_vertex (float (x*step)) (float height) (float (y/2*step)) file
+	    write_vertex 
+	      (float (x*step)/.float w) 
+	      (float height /. 300.) 
+	      (float (y/2*step)/.float h) 
+	      file
 	done
       else
 	for x=0 to (w/step)-1 do
 	  let height =
 	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
 	    write_vertex 
-	      (float (x*step) +. (float step) /. 2.) 
-	      (float height)
-	      (float (y/2*step) +. (float step) /. 2.) 
+	      ((float (x*step) +. (float step) /. 2.) /. float w)
+	      (float height /. 300.)
+	      ((float (y/2*step) +. (float step) /. 2.) /. float h)
 	      file;
 	done;
     done;
