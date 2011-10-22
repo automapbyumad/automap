@@ -263,7 +263,7 @@ let main_window = GWindow.window
   ~width:800
   ~height:600 ()
 
-(* Vbox1 -contains- bbox1 & image *)
+(* Vbox1 -contains- bbox1 & hbox0 *)
 let vbox1 = GPack.vbox
   ~border_width:15
   ~packing:main_window#add ()
@@ -272,6 +272,18 @@ let vbox1 = GPack.vbox
 let bbox1 = GPack.button_box `HORIZONTAL
   ~layout:`SPREAD
   ~packing:(vbox1#pack ~expand:false) ()
+
+(* Hbox0 -contains- bbox2 & image *)
+let hbox0 = GPack.hbox
+  ~border_width:20
+  ~packing:(vbox1#pack ~expand:false) ()
+
+(* Bbox2 -contains- filter buttons *)
+let bbox2 = GPack.button_box `VERTICAL
+  ~layout:`START
+  ~border_width:10
+  ~spacing:15
+  ~packing:(hbox0#pack ~expand:false) ()
 
 (* Main buttons *)
 let btn_border = GButton.button
@@ -311,9 +323,30 @@ let reset_image = GMisc.image
   ~stock:`REFRESH
   ~packing:btn_reset#set_image ()
 
+(* Filter buttons *)
+let btn_medianx = GButton.button
+  ~label:"Quick Median"
+  ~packing:bbox2#add ()
+
+let btn_median = GButton.button
+  ~label:"Median"
+  ~packing:bbox2#add ()
+
+let btn_gaussian = GButton.button
+  ~label:"Gaussian Blur"
+  ~packing:bbox2#add ()
+
+let btn_canny = GButton.button
+  ~label:"Canny Border"
+  ~packing:bbox2#add ()
+
+let btn_fusion = GButton.button
+  ~label:"Fusion Canny"
+  ~packing:bbox2#add ()
+
 (* Image *)
 let image_box = GMisc.image
-  ~packing:vbox1#add ()
+  ~packing:hbox0#add ()
   
 (* Settings window *)
 let settings_window = GWindow.window
@@ -470,6 +503,170 @@ let trace_points step w h output_file img =
       done;
       close_out file
 
+(* Misc - Filters *)
+let gaussianMask = [|
+  [| 2; 4; 5; 4; 2 |]; 
+  [| 4; 9; 12; 9; 4 |]; 
+  [| 5; 12; 15; 12; 5 |];
+  [| 4; 9; 12; 9; 4 |];
+  [| 2; 4; 5; 4; 2 |]
+|]
+
+let rec pow x = function
+  | 0 -> 1
+  | n -> x * pow x (n-1)
+
+let multi_color color coef =
+  let (r, g, b) = color in
+    (r*coef, g*coef, b*coef)
+
+let div_color color coef =
+  let (r, g, b) = color in 
+    (r/coef, g/coef, b/coef)
+
+let somme_color (r1, g1, b1) (r2, g2, b2) =
+  (r1+r2, g1+g2, b1+b2)
+
+(* Gaussian blur *)
+let apply_gaussian_mask src dst = 
+  let x, y, z = Sdlvideo.surface_dims src in
+  let color = ref (Sdlvideo.get_pixel_color src 0 0) in
+    for j = 2 to (y-2) do 
+      for i = 2 to (x-2) do
+	color := Sdlvideo.black;
+	for offsety = -2 to 2 do
+	  for offsetx = -2 to 2 do
+	    let colorcoef = multi_color
+	      (Sdlvideo.get_pixel_color src (i+offsetx) (j+offsety)) 
+	      (gaussianMask.(offsety+2)).(offsetx+2) in
+	      color := somme_color !color colorcoef;
+	  done
+	done;
+	color := div_color !color 159;
+	Sdlvideo.put_pixel_color dst i j !color;
+      done
+    done;
+    dst
+
+(* Median blur *)
+let apply_median src dst step = 
+  let nb_pix = (pow (2*step+1) 2) in
+  let x, y, z = Sdlvideo.surface_dims src in
+  let color = ref (Sdlvideo.black) in
+    for j = 0 to (y-1) do
+      for i = 0 to (x-1) do
+	color := Sdlvideo.black;
+	for stepy = max (-j) (-step) to min (y-1-j) (step) do
+	  for stepx = max (-i) (-step) to min (x-1-i) (step) do
+	    color :=
+	      somme_color !color
+		(Sdlvideo.get_pixel_color src (i+stepx) (j+stepy));
+	  done 
+	done;
+	color := div_color !color nb_pix;
+	Sdlvideo.put_pixel_color dst i j !color;
+      done
+    done;
+    dst
+
+(* Median Quick blur *)
+let apply_median_quick src dst step = 
+  let x, y, z = Sdlvideo.surface_dims src in
+  let color = ref (Sdlvideo.black) in
+    for j = 0 to (y-1) do
+      for i = 0 to (x-1) do
+	color := Sdlvideo.black;
+	let nb_pix = ref 0 in
+	  for stepx = max (-i) (-step) to min (x-1-i) (step) do
+	    color := somme_color 
+	      !color 
+	      (Sdlvideo.get_pixel_color src (i+stepx) j);
+	    nb_pix := !nb_pix + 1;
+	  done;
+	  for stepy = max (-j) (-step) to min (y-1-j) (step) do
+	    color := somme_color 
+	      !color 
+	      (Sdlvideo.get_pixel_color src i (j+stepy));
+	    nb_pix := !nb_pix + 1;
+	  done;
+	  color := div_color !color !nb_pix;
+	  Sdlvideo.put_pixel_color dst i j !color;
+      done
+    done;
+    dst
+
+(* Sobel Mask  *)
+let sobelMaskX = [|
+  [| -1; 0; 1 |]; 
+  [| -2; 0; 2 |]; 
+  [| -1; 0; 1 |]
+|]
+
+let sobelMaskY = [|
+  [| 1; 2; 1 |]; 
+  [| 0; 0; 0 |]; 
+  [| -1; -2; -1 |]
+|]
+
+let grey color =
+  let (r, g, b) = color in
+    (r + g + b) / 3
+
+let neighbour_white src x y =
+  let return = ref false in
+    for j = -1 to 1 do
+      for i = -1 to 1 do
+	if i <> 0 || j <> 0 then
+	  if Sdlvideo.get_pixel_color src (x+i) (y+j) = Sdlvideo.white then
+	    return := true
+      done
+    done;
+    !return 
+
+let apply_fusion src src2 dst = 
+  let x, y, z = Sdlvideo.surface_dims src in
+    for j = 0 to (y-1) do
+      for i = 0 to (x-1) do
+	if Sdlvideo.get_pixel_color src2 i j = Sdlvideo.white then
+	  Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+	done
+      done;
+      dst
+
+let apply_sobel_mask src dst =
+  let x, y, z = Sdlvideo.surface_dims src in
+    for j = 0 to (y-1)  do 
+      for i = 0 to (x-1) do
+	let grad_v = ref 0 and grad_h = ref 0 in
+	  for offsety = max (-j) (-1) to min (y-1-j) 1 do
+	    for offsetx = max (-i) (-1) to min (x-1-i) 1 do
+	      let color_grey = 
+		grey (Sdlvideo.get_pixel_color src (i+offsetx) (j+offsety)) in
+		grad_v :=
+		  !grad_v + color_grey * (sobelMaskX.(offsety+1)).(offsetx+1);
+		grad_h :=
+		  !grad_h + color_grey * (sobelMaskY.(offsety+1)).(offsetx+1);
+	    done
+	  done;
+	  let length = sqrt (float_of_int (pow !grad_v 2 + pow !grad_h 2)) in
+	    if length < 35. then
+	      Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+	    else
+	      begin
+		if length > 40. then
+		  Sdlvideo.put_pixel_color dst i j Sdlvideo.white
+		else
+		  begin
+		    if neighbour_white dst i j then 
+		      Sdlvideo.put_pixel_color dst i j Sdlvideo.white
+		    else
+		      Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+		  end
+	      end
+      done
+    done;
+    dst
+
 (* Misc Functions *)
 let rec generate_height = function 
   | -1 -> []
@@ -541,6 +738,37 @@ let on_relief src =
     glscreen ();
     ()
 
+let on_medianx src =
+  let dst = Sdlloader.load_image "temp.bmp" in
+    save_as (apply_median_quick src dst 1) "temp.bmp";
+    image_box#set_file "temp.bmp";
+    ()
+
+let on_median src =
+  let dst = Sdlloader.load_image "temp.bmp" in
+    save_as (apply_median src dst 1) "temp.bmp";
+    image_box#set_file "temp.bmp";
+    ()
+  
+let on_gaussian src =
+  let dst = Sdlloader.load_image "temp.bmp" in
+    save_as (apply_gaussian_mask src dst) "temp.bmp";
+    image_box#set_file "temp.bmp";
+    ()
+
+let on_canny src =
+  let dst = Sdlloader.load_image "temp.bmp" in
+    save_as (apply_sobel_mask src dst) "canny.bmp";
+    image_box#set_file "canny.bmp";
+    ()
+
+let on_fusion src =
+  let dst = Sdlloader.load_image "temp.bmp" in
+  let src2 = Sdlloader.load_image "canny.bmp" in
+    save_as (apply_fusion src src2 dst) "temp.bmp";
+    image_box#set_file "temp.bmp";
+    ()
+
 (* ================================= MAIN =================================== *)
 let sdl_launch () = 
   let path = get_string btn_open#filename in
@@ -554,9 +782,19 @@ let sdl_launch () =
     ignore(btn_grid#connect#clicked
 	     ~callback:(fun _ -> on_grid src)); 
     ignore(btn_save#connect#clicked
-	     ~callback:(fun _ -> save path));
+	     ~callback:(fun _ -> save "resultat.bmp"));
     ignore(btn_3d#connect#clicked
 	     ~callback:(fun _ -> on_relief src));
+    ignore(btn_medianx#connect#clicked
+	     ~callback:(fun _ -> on_medianx src));
+    ignore(btn_median#connect#clicked
+	     ~callback:(fun _ -> on_median src));
+    ignore(btn_gaussian#connect#clicked
+	     ~callback:(fun _ -> on_gaussian src));
+    ignore(btn_canny#connect#clicked
+	     ~callback:(fun _ -> on_canny src));
+    ignore(btn_fusion#connect#clicked
+	     ~callback:(fun _ -> on_fusion src));
     ()
       
 (* Main *)
