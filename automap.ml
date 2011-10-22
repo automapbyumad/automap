@@ -321,12 +321,12 @@ let reset_image = GMisc.image
   ~packing:btn_reset#set_image ()
 
 (* Filter buttons *)
-let btn_medianx = GButton.button
-  ~label:"Quick Median"
+let btn_mediumx = GButton.button
+  ~label:"Quick Medium"
   ~packing:bbox2#add ()
 
-let btn_median = GButton.button
-  ~label:"Median"
+let btn_medium = GButton.button
+  ~label:"Medium Blur"
   ~packing:bbox2#add ()
 
 let btn_gaussian = GButton.button
@@ -549,8 +549,8 @@ let apply_gaussian_mask src dst =
     done;
     dst
 
-(* Median blur *)
-let apply_median src dst step = 
+(* Medium blur *)
+let apply_medium src dst step =
   let x, y, z = Sdlvideo.surface_dims src in
   let color = ref (Sdlvideo.black) in
     for j = 0 to (y-1) do
@@ -571,8 +571,8 @@ let apply_median src dst step =
     done;
     dst
 
-(* Median Quick blur *)
-let apply_median_quick src dst step = 
+(* Medium Quick blur *)
+let apply_medium_quick src dst step = 
   let x, y, z = Sdlvideo.surface_dims src in
   let color = ref (Sdlvideo.black) in
     for j = 0 to (y-1) do
@@ -746,15 +746,15 @@ let on_relief src =
     glscreen ();
     ()
 
-let on_medianx src =
+let on_mediumx src =
   let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (apply_median_quick src dst 1) "temp.bmp";
+    save_as (apply_medium_quick src dst 1) "temp.bmp";
     image_box#set_file "temp.bmp";
     ()
 
-let on_median src =
+let on_medium src =
   let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (apply_median src dst 1) "temp.bmp";
+    save_as (apply_medium src dst 1) "temp.bmp";
     image_box#set_file "temp.bmp";
     ()
   
@@ -793,10 +793,10 @@ let sdl_launch () =
 	     ~callback:(fun _ -> save "resultat.bmp"));
     ignore(btn_3d#connect#clicked
 	     ~callback:(fun _ -> on_relief src));
-    ignore(btn_medianx#connect#clicked
-	     ~callback:(fun _ -> on_medianx src));
-    ignore(btn_median#connect#clicked
-	     ~callback:(fun _ -> on_median src));
+    ignore(btn_mediumx#connect#clicked
+	     ~callback:(fun _ -> on_mediumx src));
+    ignore(btn_medium#connect#clicked
+	     ~callback:(fun _ -> on_medium src));
     ignore(btn_gaussian#connect#clicked
 	     ~callback:(fun _ -> on_gaussian src));
     ignore(btn_canny#connect#clicked
