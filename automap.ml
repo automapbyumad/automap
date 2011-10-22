@@ -550,21 +550,22 @@ let apply_gaussian_mask src dst =
 
 (* Median blur *)
 let apply_median src dst step = 
-  let nb_pix = (pow (2*step+1) 2) in
   let x, y, z = Sdlvideo.surface_dims src in
   let color = ref (Sdlvideo.black) in
     for j = 0 to (y-1) do
       for i = 0 to (x-1) do
 	color := Sdlvideo.black;
-	for stepy = max (-j) (-step) to min (y-1-j) (step) do
-	  for stepx = max (-i) (-step) to min (x-1-i) (step) do
-	    color :=
-	      somme_color !color
-		(Sdlvideo.get_pixel_color src (i+stepx) (j+stepy));
-	  done 
-	done;
-	color := div_color !color nb_pix;
-	Sdlvideo.put_pixel_color dst i j !color;
+	let nb_pix = ref 0 in
+	  for stepy = max (-j) (-step) to min (y-1-j) (step) do
+	    for stepx = max (-i) (-step) to min (x-1-i) (step) do
+	      color :=
+		somme_color !color
+		  (Sdlvideo.get_pixel_color src (i+stepx) (j+stepy));
+	      nb_pix := !nb_pix + 1;
+	    done 
+	  done;
+	  color := div_color !color !nb_pix;
+	  Sdlvideo.put_pixel_color dst i j !color;
       done
     done;
     dst
