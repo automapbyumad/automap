@@ -670,6 +670,7 @@ let apply_sobel_mask src dst =
     dst
 
 (* Misc Functions *)
+
 let rec generate_height = function 
   | -1 -> []
   | n -> (n*10)::generate_height (n-1)
@@ -726,6 +727,11 @@ let on_border src =
     image_box#set_file "temp.bmp";
     (* ignore(generate_textbox ()); *)
     list_height := generate_height ((List.length !list_color)-1);
+    let fichier = open_out "cfg.txt" in
+    for i = 0 to (List.length !list_color)-1 do
+      output_string fichier ((triple2string(List.nth !list_color i))^" "^(string_of_int(List.nth !list_height i))^"\n");
+    done;
+    close_out fichier;
     ()
       
 let on_grid src =
