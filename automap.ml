@@ -13,7 +13,6 @@ let _ = GMain.init ()
 #load "str.cma";;
 *)
 
-let fontName = "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf";;
 let xrot = ref 0.0 and yrot = ref 0.0 and zrot = ref 0.0;;
 let xpos = ref 0.0 and ypos = ref 0.0 and zpos = ref 0.0;;
 let zoom = ref 1.;;
@@ -124,7 +123,7 @@ let drawScene screen (model:obj3D) =
   GlMat.ortho 
     ~x:(-1.5 *. !zoom, 1.5 *. !zoom) 
     ~y:(-1.5 *. !zoom, 1.5 *. !zoom) 
-    ~z:(-3.5 *. !zoom, 3.5 *. !zoom);
+    ~z:(-30.5 *. !zoom, 3.5 *. !zoom);
   GlMat.mode `modelview;
   GlMat.load_identity (); 
   GlClear.clear [ `color;`depth];
@@ -137,7 +136,7 @@ let drawScene screen (model:obj3D) =
   
   List.iter (fun face -> 
 	       begin match !displayMode with
-		 | 0 -> GlDraw.polygon_mode `both `line;
+		 | 0 | 1 -> GlDraw.polygon_mode `both `line;
 		 | _ -> GlDraw.polygon_mode `both `fill;
 	       end;
 	       begin match List.length face with
@@ -153,19 +152,29 @@ let drawScene screen (model:obj3D) =
   Sdlgl.swap_buffers ();
 ;;
 
-let resetGlEnable () =
+let toggleDisplayMode () =
+  displayMode := (!displayMode + 1) mod 3;
   Gl.disable `cull_face;
   Gl.disable `depth_test;
   Gl.disable `texture_2d;
-;;
-
-let enableShadedMode () =
-  Gl.enable `cull_face;
-  GlDraw.cull_face `front; 
-  Gl.enable `depth_test;
-  GlFunc.depth_mask true;
-  GlFunc.depth_range ~near:0.1 ~far:10.0;
-  Gl.enable `texture_2d;
+  print_string "Changed display mode to ";
+  begin
+    match !displayMode with
+      | 0 -> print_endline "wireframe";
+      | 1 -> 
+	  GlFunc.depth_range ~near:0.1 ~far:10.0;
+	  Gl.enable `texture_2d;
+	  print_endline "textured wireframe";
+      | 2 -> 
+	  Gl.enable `cull_face;
+	  GlDraw.cull_face `front; 
+	  Gl.enable `depth_test;
+	  GlFunc.depth_mask true;
+	  GlFunc.depth_range ~near:0.1 ~far:10.0;
+	  Gl.enable `texture_2d;
+	  print_endline "textured solid";
+      | _ -> ();
+  end;
 ;;
 
 (* Here we handle all events *)
@@ -176,16 +185,7 @@ let rec mainLoop screen model =
     | Sdlevent.QUIT -> Sdl.quit ();
     | event -> 
 	begin match event with
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_z} ->
-	      displayMode := (!displayMode + 1) mod 2;
-	      resetGlEnable ();
-	      print_string "Changed display mode to ";
-	      begin
-		match !displayMode with
-		  | 0 -> print_endline "wireframe";
-		  | 1 -> enableShadedMode (); print_endline "solid";
-		  | _ -> ();
-	      end;
+	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_z} -> toggleDisplayMode ();
 	  | Sdlevent.MOUSEMOTION e 
 	      when e.Sdlevent.mme_state = [Sdlmouse.BUTTON_RIGHT] ->
 	      yrot := !yrot +. float e.Sdlevent.mme_xrel;
@@ -213,7 +213,7 @@ let glscreen () =
   Sdlwm.set_caption ~title:"AutoMap" ~icon:"";
   let screen = Sdlvideo.set_video_mode 500 500 [`OPENGL; `DOUBLEBUF] in
     
-    enableShadedMode ();
+    toggleDisplayMode ();
     
     let green = GlTex.gen_texture () in
     let image = Sdlloader.load_image "temp.bmp" in
@@ -283,6 +283,10 @@ let bbox2 = GPack.button_box `VERTICAL
   ~packing:(hbox0#pack ~expand:false) ()
 
 (* Main buttons *)
+let btn_open = GFile.chooser_button
+  ~action:`OPEN
+  ~packing:bbox1#add ()
+
 let btn_border = GButton.button
   ~label:"Border"
   ~packing:bbox1#add ()
@@ -293,10 +297,6 @@ let btn_grid = GButton.button
 
 let btn_3d = GButton.button
   ~label:"Relief"
-  ~packing:bbox1#add ()
-
-let btn_open = GFile.chooser_button
-  ~action:`OPEN
   ~packing:bbox1#add ()
 
 let btn_save = GButton.button
