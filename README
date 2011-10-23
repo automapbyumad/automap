@@ -1,0 +1,80 @@
+#################################
+#	AutoMap - v0.1		#
+#	 (23-10-2011)		#
+#	    by UMAD		#
+#	http://umad.fr.nf	#
+#################################
+
+I)	What is AutoMap ?
+II)	How to Compile
+III)	How to use
+IV)	Other usages
+V)	Credits
+
+I)	What is AutoMap ?
+-------------------------
+
+	AutoMap is a cool 3D map generator and viewer that lets you
+generate 3D landscapes using a 2D picture that look's like a topology
+map. It can be used to other aspects such as generate 3D models for an
+external 3D software.
+
+	AutoMap has been developed by UMAD team (see V-Credits) as
+a second year school project at Epita.
+
+	It uses lablgl, lablgtk and ocamlsdl. Automap has been realized using OCaml language.
+
+
+II)	How to Compile
+-----------------------
+
+Required packages :
+ - ocaml-native-compilers
+ - libsdl-ocaml-dev
+ - libsdl-ocaml
+ - lablgl-ocaml-dev
+ - lablgl-ocaml
+ - lablgtk2-ocaml-dev
+ - lablgtk2-ocaml
+
+Use "make" to generate the bytecode
+Use ./automap to launch AutoMap once compiled
+
+III)	How to use
+-------------------
+
+ - Launch AutoMap using ./automap or by double clicking on 
+   automap icon.
+
+ - Once launched, you'll see a gtk interface showing multiple buttons.
+   Start with the first one : load an image. Select your image and then
+   click "Ok"
+
+ - Your image is showed. Click on "Border" to compute borders, then 
+   "Grid" to generate the 3D mesh.
+
+ - Click on "Relief" to launch the OpenGL viewer of the generated mesh
+
+ -> Lateral buttons are only here for future updates. It shows another
+    algorithm of border detection, and a future feature that needs 
+    blurring algorithms.
+
+
+IV)	Other usages
+---------------------
+
+	You can use AutoMap only as a 3D mesh generator from a 2D
+picture. Indeed, AutoMap generates a Wavefront file (*.obj) compatible
+with other 3D modelling software such as Blender.
+
+
+V)	Credits
+----------------
+
+AutoMap has been produced by UMAD team
+ * Jérémy ANSELME (Levak)	- anselm_j@epita.fr
+ * Vincent Mirzaian-dehkordi	- mirzai_v@epita.fr
+ * Rémi Waser			- waser_r@epita.fr
+ * Rémi Weng			- weng_r@epita.fr
+
+http://umad.fr.nf
