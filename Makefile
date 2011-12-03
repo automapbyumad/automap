@@ -1,14 +1,15 @@
 RESULT     = automap
-SOURCES    = automap.ml
-LIBS       = lablgl.cma bigarray.cma sdl.cma sdlloader.cma str.cma lablgtk.cma
-INCDIRS    = -I +sdl -I +lablGL -I +lablgtk2
+SOURCES    = vector.ml quadTree.ml e3D.ml automap.ml
+LIBS       = GL.cmxa Glu.cmxa bigarray.cmxa VBO.cmxa vertArray.cmxa genimg_loader.cmxa png_loader.cmxa jpeg_loader.cmxa sdl.cmxa sdlloader.cmxa str.cmxa unix.cmxa lablgtk.cmxa
+INCDIRS    = -I +sdl -I +glMLite -I +lablgtk2
 
 all: $(RESULT)
 
 $(RESULT): $(SOURCES)
 	@echo "Compiling $(RESULT)..."
-	@ocamlc $(INCDIRS) -o $(RESULT) $(LIBS) $(SOURCES)
+       #@ocamlopt $(INCDIRS) -c $(SOURCES) $(LIBS)#
+	@ocamlopt $(INCDIRS) -o $(RESULT) $(LIBS) $(SOURCES)
 	@echo "Done !"
 
 clean:
-	rm -f $(RESULT).cm? *.o *~ automap temp.bmp temp_grid.bmp canny.bmp cfg.txt test.obj resultat.bmp
+	rm -f ${SOURCES:ml=cm?} *.o *~ automap temp.bmp temp_grid.bmp canny.bmp cfg.txt test.obj resultat.bmp
