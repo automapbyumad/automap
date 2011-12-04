@@ -1,7 +1,7 @@
 RESULT     = automap
 SOURCES    = vector.ml quadTree.ml e3D.ml automap.ml
-LIBS       = GL.cmxa Glu.cmxa bigarray.cmxa VBO.cmxa vertArray.cmxa genimg_loader.cmxa png_loader.cmxa jpeg_loader.cmxa sdl.cmxa sdlloader.cmxa str.cmxa unix.cmxa lablgtk.cmxa
-INCDIRS    = -I +sdl -I +glMLite -I +lablgtk2
+LIBS       = GL.cmxa Glu.cmxa bigarray.cmxa VBO.cmxa vertArray.cmxa genimg_loader.cmxa png_loader.cmxa jpeg_loader.cmxa sdl.cmxa sdlloader.cmxa str.cmxa unix.cmxa lablgtk.cmxa lablgtkgl.cmxa
+INCDIRS    = -I +sdl -I +glMLite -I +lablgtk2 -I +lablGL
 
 all: $(RESULT)
 

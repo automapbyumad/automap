@@ -93,30 +93,36 @@ let is_color_in_range c1 c2 range =
     g1 <= g2 + range && g1 >= g2 - range &&
     b1 <= b2 + range && b1 >= b2 - range
 
+let rec list_invert = function
+  | [] -> []
+  | e::l -> (list_invert l)@[e]
+
 let print_border src dst =
   let seuil = 20 in
   let x, y, z = Sdlvideo.surface_dims src in
-    for i = 0 to x-1 do
-	for j = 0 to y-1 do
-	  let pix1 = Sdlvideo.get_pixel_color src i j in
-	  let pix2 = Sdlvideo.get_pixel_color src (i+1) j in
-	  let pix3 = Sdlvideo.get_pixel_color src i (j+1) in
-	    if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
-	      begin
-		if not(List.exists (fun x -> x = pix1) !list_color) then
-		  list_color := (pix1::!list_color);
-		Sdlvideo.put_pixel_color dst i j Sdlvideo.black  
-	      end;
-	    if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
-	      begin
-		if not(List.exists (fun x -> x = pix1) !list_color) then
-		  list_color := (pix1::!list_color);
-		Sdlvideo.put_pixel_color dst i j Sdlvideo.black
-	      end;
-	done;
-      done;
-    dst
-
+  for i = 0 to x-1 do
+    for j = 0 to y-1 do
+      let pix1 = Sdlvideo.get_pixel_color src i j in
+      let pix2 = Sdlvideo.get_pixel_color src (i+1) j in
+      let pix3 = Sdlvideo.get_pixel_color src i (j+1) in
+      if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
+	begin
+	  if not(List.exists (fun x -> x = pix1) !list_color) then
+	    list_color := (pix1::!list_color);
+	  Sdlvideo.put_pixel_color dst i j Sdlvideo.black  
+	end;
+      if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
+	begin
+	  if not(List.exists (fun x -> x = pix1) !list_color) then
+	    list_color := (pix1::!list_color);
+	  Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+	end;
+    done;
+  done;
+  list_color := list_invert !list_color;
+  list_height := Array.init (List.length !list_color) (fun i -> i*10);
+  dst
+    
 (* Grid *)
 (* e = step *)
 let print_grid src dst e =
@@ -133,8 +139,8 @@ let print_grid src dst e =
 	done;
       done;
     done;
-  dst
-    
+  dst   
+
 let write_vertex x y z file =
   output_string file ("v " ^ 
 			(string_of_float x) ^ " " ^
@@ -170,9 +176,9 @@ let trace_points step w h output_file img =
 	  let height =
 	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
 	    write_vertex 
-	      (float (x*step))(*/.float w) *)
-	      (float height)(* /. 300.) *)
-	      (float (y/2*step))(*/.float h) *)
+	      (float (x*step) -. (float w /.2.))
+	      (float height) 
+	      (float (y/2*step) -. (float h /. 2.)) 
 	      file
 	done
       else
@@ -180,9 +186,9 @@ let trace_points step w h output_file img =
 	  let height =
 	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
 	    write_vertex 
-	      ((float (x*step) +. (float step) /. 2.) )(*/. float w)*)
-	      (float height) (*/. 300.)*)
-	      ((float (y/2*step) +. (float step) /. 2.) )(*/. float h)*)
+	      ((float (x*step) +. (float step) /. 2.) -. (float w /. 2.))
+	      (float height)
+	      ((float (y/2*step) +. (float step) /. 2.) -. (float h /. 2.))
 	      file;
 	done;
     done;
@@ -498,7 +504,10 @@ let settings_sampling src =
     let (r, g, b) = List.nth !list_color i in
     let color = Printf.sprintf "#%02x%02x%02x" r g b in
     tb#misc#modify_base [`NORMAL, `NAME color];
-    textbox_array.(i) <- tb
+    textbox_array.(i) <- tb;
+  done;
+  for i=0 to (nb_colors - 1) do
+    textbox_array.(i)#set_text (string_of_int !list_height.(i))
   done;
   let bbox1 = GPack.button_box `HORIZONTAL
     ~layout:`SPREAD
@@ -518,8 +527,8 @@ let settings_sampling src =
   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
   btn_ok#connect#clicked
     ~callback:(fun _ ->
-      list_height := Array.make (List.length !list_color) 0;
-      for i=0 to ((List.length !list_color) - 1) do
+      list_height := Array.make nb_colors 0;
+      for i=0 to (nb_colors - 1) do
 	!list_height.(i) <- (recup textbox_array.(i));
 	Printf.printf "%d\n" !list_height.(i)
       done;
@@ -527,7 +536,7 @@ let settings_sampling src =
       generate_cfg ();
       let (w, h, _) = Sdlvideo.surface_dims src in
       generate_obj w h !step src;
-      E3D.main "test" "carte.bmp" )
+      E3D.main "test.obj" "temp.bmp" 30 )
 
 let settings_grid src =
   let window1 = GWindow.window

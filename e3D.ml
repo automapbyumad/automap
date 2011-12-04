@@ -10,8 +10,6 @@
 #load "str.cma";;
 *)
 
-let to_ba t k = Bigarray.Array1.of_array k Bigarray.c_layout t 
-
 let xrot = ref 45.0 and yrot = ref 45.0 and zrot = ref 0.0
 let xpos = ref 0.0 and ypos = ref 0.0 and zpos = ref 0.0
 let zoom = ref 1.
@@ -19,9 +17,12 @@ let pw = ref 512. and ph = ref 512.
 let displayMode = ref 1
 let animate = ref false
 let anaglyph = ref false
+let ortho = ref true
+let textured = ref true
 let textures = ref (Array.make 0 (GL.glGenTexture ()))
 let internalTimer = ref 0
 let refTimer = ref 70
+let wratio = ref 0.
  
 (* Count how many vertices and faces there are in the input OBJ file
    BUT can also find at the end of the file a line containing those data
@@ -228,45 +229,48 @@ class obj3D (nv,nf) = object (self)
       done;
       
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboVertices;
-      VBO.glBufferData VBO.GL_ARRAY_BUFFER (VBO.ba_sizeof vertexArray) vertexArray VBO.GL_STATIC_DRAW;
+      VBO.glBufferData VBO.GL_ARRAY_BUFFER 
+	(VBO.ba_sizeof vertexArray) vertexArray VBO.GL_STATIC_DRAW;
       
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboTexture;
-      VBO.glBufferData VBO.GL_ARRAY_BUFFER (VBO.ba_sizeof textureArray) textureArray VBO.GL_STATIC_DRAW;
+      VBO.glBufferData VBO.GL_ARRAY_BUFFER 
+	(VBO.ba_sizeof textureArray) textureArray VBO.GL_STATIC_DRAW;
       
       VBO.glBindBuffer VBO.GL_ELEMENT_ARRAY_BUFFER vboFaces;
-      VBO.glBufferData VBO.GL_ELEMENT_ARRAY_BUFFER (VBO.ba_sizeof faceArray) faceArray VBO.GL_STATIC_DRAW;
+      VBO.glBufferData VBO.GL_ELEMENT_ARRAY_BUFFER 
+	(VBO.ba_sizeof faceArray) faceArray VBO.GL_STATIC_DRAW;
 
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboNormals;
-      VBO.glBufferData VBO.GL_ARRAY_BUFFER (VBO.ba_sizeof vertexNormalArray) vertexNormalArray VBO.GL_STATIC_DRAW
+      VBO.glBufferData VBO.GL_ARRAY_BUFFER 
+	(VBO.ba_sizeof vertexNormalArray) vertexNormalArray VBO.GL_STATIC_DRAW;
       
+      VertArray.glEnableClientState VertArray.GL_NORMAL_ARRAY;
+      VertArray.glEnableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
+      VertArray.glEnableClientState VertArray.GL_VERTEX_ARRAY;
+      
+      VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboNormals;
+      VertArray.glNormalPointer0 VertArray.Norm.GL_FLOAT 0;
+      
+      VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboTexture;
+      VertArray.glTexCoordPointer0 2 VertArray.Coord.GL_FLOAT 0;
+      
+      VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboVertices;
+      VBO.glBindBuffer VBO.GL_ELEMENT_ARRAY_BUFFER vboFaces;
+      VertArray.glVertexPointer0 3 VertArray.Coord.GL_FLOAT 0
+
   method draw = 
-    enableTexture 0;
+    if !textured then enableTexture 0;
+    (*    VertArray.glDrawArrays GL.GL_POINTS 0 (nb_vertices*3);*)
+    VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4) VertArray.Elem.GL_UNSIGNED_INT
 
-    VertArray.glEnableClientState VertArray.GL_NORMAL_ARRAY;
-    VertArray.glEnableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
-    VertArray.glEnableClientState VertArray.GL_VERTEX_ARRAY;
-
-    VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboNormals;
-    VertArray.glNormalPointer0 VertArray.Norm.GL_FLOAT 0;
-
-    VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboTexture;
-    VertArray.glTexCoordPointer0 2 VertArray.Coord.GL_FLOAT 0;
- 
-    VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboVertices;
-    VBO.glBindBuffer VBO.GL_ELEMENT_ARRAY_BUFFER vboFaces;
-    VertArray.glVertexPointer0 3 VertArray.Coord.GL_FLOAT 0;
-
-(*    VertArray.glDrawArrays GL.GL_POINTS 0 (nb_vertices*3);*)
-    VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4) VertArray.Elem.GL_UNSIGNED_INT;
-
+  method free =
     VertArray.glDisableClientState VertArray.GL_VERTEX_ARRAY;
     VertArray.glDisableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
     VertArray.glDisableClientState VertArray.GL_NORMAL_ARRAY;
 
     VBO.glUnbindBuffer VBO.GL_ARRAY_BUFFER;
     VBO.glUnbindBuffer VBO.GL_ELEMENT_ARRAY_BUFFER;
-      
-  method free =
+
     VBO.glDeleteBuffer vboVertices;
     VBO.glDeleteBuffer vboTexture;
     VBO.glDeleteBuffer vboNormals;
@@ -283,35 +287,41 @@ let drawScene screen (model:obj3D) =
   GL.glMatrixMode GL.GL_PROJECTION;
   GL.glLoadIdentity ();
 
-  GL.glOrtho 
-    ~left:(-3. *. !zoom)
-    ~right:(3. *. !zoom)
-    ~bottom:(-3. *. !zoom)
-    ~top:(3. *. !zoom)
-    ~near:(-30.5 *. !zoom)
-    ~far:(30.5 *. !zoom);
+  if !ortho then
+    GL.glOrtho
+      ~left:(-3. *. !zoom)
+      ~right:(3. *. !zoom)
+      ~bottom:(-3. *. !zoom /. !wratio)
+      ~top:(3. *. !zoom /. !wratio)
+      ~near:(-30.5 *. !zoom)
+      ~far:(30.5 *. !zoom)
+  else
+    begin 
+      Glu.gluPerspective 60.0 (!wratio) (0.3 *. !zoom) (3000. *. !zoom);
+      Glu.gluLookAt 0. 0. ( !pw *. !zoom /. 100.) 0. 0. (1. *. !zoom /. 100.) 0. 1. 0.;
+    end;
   GL.glMatrixMode GL.GL_MODELVIEW;
   GL.glLoadIdentity (); 
   GL.glColorMask true true true true;
   GL.glClearColor 0.2 0.2 0.2 1.;
   GL.glClear [GL.GL_COLOR_BUFFER_BIT;GL.GL_DEPTH_BUFFER_BIT];
-
+(*  GL.glScale !zoom !zoom !zoom;*)
   GL.glPushMatrix ();
-  GL.glTranslate ~x:!xpos ~y:!ypos ~z:!zpos;
+  GL.glTranslate ~x:!xpos ~y:!ypos ~z:(!zpos);
   GL.glRotate ~angle:!xrot ~x:1. ~y:0. ~z:0.;
   GL.glRotate ~angle:!yrot ~y:1. ~x:0. ~z:0.;
 
   begin if !anaglyph then 
-    GL.glColorMask false true  true false;
+    GL.glColorMask false true true false;
   end;
   GL.glLight ~light:(GL.GL_LIGHT 0) ~pname:(GL.Light.GL_POSITION (0., 100., 1000., -1.));
 
   begin match !displayMode with
-    | 0 | 1 -> 
+    | 0 -> 
 	GL.glPolygonMode GL.GL_FRONT_AND_BACK GL.GL_LINE;
     | e -> 
 	GL.glPolygonMode GL.GL_FRONT_AND_BACK GL.GL_FILL;
-	if e = 3 then (* Lighting mode *)
+	if e = 5 then (* Lighting mode *)
 	  begin
 	    GL.glEnable GL.GL_LIGHT0;
 	    GL.glDepthFunc GL.GL_LESS;
@@ -321,42 +331,58 @@ let drawScene screen (model:obj3D) =
 (*recalculate silhouette of blocking objects viewed from casting light position using GLU tessellator *)
 	    GL.glColorMask false false false false;
 	    GL.glDepthMask false;
-	    GL.glCullFace GL.GL_FRONT;
-	    GL.glClear [GL.GL_STENCIL_BUFFER_BIT];
-	    GL.glStencilFunc GL.GL_ALWAYS 0 0;
-	    GL.glStencilOp GL.GL_KEEP GL.GL_KEEP GL.GL_INVERT;
 	    GL.glEnable GL.GL_STENCIL_TEST;
+	    GL.glEnable GL.GL_POLYGON_OFFSET_FILL;
+	    GL.glPolygonOffset 0.0 100.0;
+	    GL.glClear [GL.GL_STENCIL_BUFFER_BIT];
+	    GL.glCullFace GL.GL_FRONT;
+	    GL.glDrawBuffer GL.DrawBuffer.GL_FRONT;
+	    GL.glStencilFunc GL.GL_ALWAYS 0 255;
+	    GL.glStencilOp GL.GL_KEEP GL.GL_KEEP GL.GL_INVERT;
+	    model#draw;    
 (* draw shadow volume *)
 	    GL.glCullFace GL.GL_BACK;
+	    GL.glDrawBuffer GL.DrawBuffer.GL_BACK;
+	    model#draw;    
 (* draw shadow volume *)
 	    GL.glColorMask true true true true;
 	    GL.glDepthFunc GL.GL_EQUAL;
 	    GL.glStencilOp GL.GL_KEEP GL.GL_KEEP GL.GL_KEEP;
-	    GL.glStencilFunc GL.GL_NOTEQUAL 0 0;
+	    GL.glStencilFunc GL.GL_ALWAYS 0 255; (*GL.GL_NOTEQUAL*)
 	    GL.glDisable GL.GL_LIGHT0
 	  end
   end;
   model#draw;
-  GL.glPopMatrix ();
 
   if !anaglyph then
     begin
       GL.glClear [GL.GL_DEPTH_BUFFER_BIT];
       GL.glColorMask true false false false;
-      GL.glPushMatrix ();
-      GL.glTranslate ~x:(!xpos-.10.) ~y:!ypos ~z:!zpos;
-      GL.glRotate ~angle:!xrot ~x:1. ~y:0. ~z:0.;
-      GL.glRotate ~angle:!yrot ~y:1. ~x:0. ~z:0.;
+      if !ortho then
+	begin
+	  GL.glPopMatrix ();
+	  GL.glPushMatrix ();
+	  GL.glTranslate ~x:(!xpos-.10.) ~y:!ypos ~z:!zpos;
+	  GL.glRotate ~angle:!xrot ~x:1. ~y:0. ~z:0.;
+	  GL.glRotate ~angle:!yrot ~y:1. ~x:0. ~z:0.;
+	end
+      else
+	begin
+	  GL.glMatrixMode GL.GL_PROJECTION;
+	  GL.glLoadIdentity ();
+	  Glu.gluPerspective 60.0 (!wratio) (0.3 *. !zoom) (3000. *. !zoom);
+	  Glu.gluLookAt 10. 0. ( !pw *. !zoom /. 100.) 0. 0. (1. *. !zoom /. 100.) 0. 1. 0.;
+	  GL.glMatrixMode GL.GL_MODELVIEW;
+    	end;
       model#draw;
       GL.glPopMatrix ();
-      GL.glDisable GL.GL_BLEND;
     end;
 
   GL.glFlush ();
   Sdlgl.swap_buffers ()
 
 let toggleDisplayMode (n) =
-  let max = 4 in
+  let max = 3 in
     displayMode := (if n < 0 && !displayMode = 0 then max - 1 
 		    else (!displayMode + n) mod max);
     GL.glDepthFunc GL.GL_LESS;
@@ -366,38 +392,39 @@ let toggleDisplayMode (n) =
     GL.glDisable GL.GL_LIGHTING;
     GL.glDisable GL.GL_LIGHT0;
     GL.glDisable GL.GL_COLOR_MATERIAL;
-    
+
     print_string "Changed display mode to ";
-    begin
-    match !displayMode with
+
+    if !textured then
+      begin
+	GL.glEnable GL.GL_TEXTURE_2D;
+	print_string "textured ";
+      end;
+    
+    begin match !displayMode with
       | 0 -> print_endline "wireframe"
       | 1 ->
-	  GL.glDepthRange ~near:0.1 ~far:10.0;
-	  GL.glEnable GL.GL_TEXTURE_2D;
-	  print_endline "textured wireframe"
+	  GL.glEnable GL.GL_CULL_FACE;
+	  GL.glCullFace GL.GL_BACK;
+          GL.glEnable GL.GL_DEPTH_TEST;
+          GL.glDepthMask true;
+          GL.glDepthRange ~near:0.1 ~far:10.0;
+          print_endline "solid"
       | 2 ->
 	  GL.glEnable GL.GL_CULL_FACE;
 	  GL.glCullFace GL.GL_BACK;
           GL.glEnable GL.GL_DEPTH_TEST;
           GL.glDepthMask true;
           GL.glDepthRange ~near:0.1 ~far:10.0;
-          GL.glEnable GL.GL_TEXTURE_2D;
-          print_endline "textured solid"
-      | 3 ->
-	  GL.glEnable GL.GL_CULL_FACE;
-	  GL.glCullFace GL.GL_BACK;
-          GL.glEnable GL.GL_DEPTH_TEST;
-          GL.glDepthMask true;
-          GL.glDepthRange ~near:0.1 ~far:10.0;
-          GL.glEnable GL.GL_TEXTURE_2D;
  	  GL.glEnable GL.GL_LIGHTING;
+	  GL.glEnable GL.GL_LIGHT0;
 	  GL.glMaterial GL.GL_FRONT_AND_BACK (GL.Material.GL_SHININESS 100.);
 	  GL.glEnable GL.GL_COLOR_MATERIAL;
 	  GL.glColorMaterial GL.GL_FRONT_AND_BACK GL.GL_SPECULAR;
 	  GL.glColorMaterial GL.GL_FRONT_AND_BACK GL.GL_AMBIENT_AND_DIFFUSE;
-	  print_endline "lighting"
+	  print_endline "shaded"
       | _ -> ();
-  end
+    end
 
 let rotateView xrel yrel =
   yrot := !yrot +. xrel;
@@ -427,8 +454,11 @@ let rec mainLoop screen model =
 	  | Sdlevent.KEYDOWN k -> begin match k.Sdlevent.keysym with 
 		| Sdlkey.KEY_z -> toggleDisplayMode (1);
 		| Sdlkey.KEY_s -> toggleDisplayMode (-1);
-		| Sdlkey.KEY_a -> animate := not !animate;
+		| Sdlkey.KEY_a -> animate := not !animate; 
 		| Sdlkey.KEY_d -> anaglyph := not !anaglyph;
+		    if !anaglyph then print_endline "IN 3 D !!!!"
+		| Sdlkey.KEY_t -> textured := not !textured; toggleDisplayMode (0);
+		| Sdlkey.KEY_e -> ortho := not !ortho;
 		| Sdlkey.KEY_UP -> rotateView 0. 5.;
 		| Sdlkey.KEY_DOWN -> rotateView 0. (-5.);
 		| Sdlkey.KEY_LEFT -> rotateView 5. 0.;
@@ -462,23 +492,35 @@ let rec mainLoop screen model =
 
 
 (* Setup the screen *)
-let main obj tex =
+let main obj tex fps =
   Sdl.init [`EVERYTHING];
   Sdlwm.set_caption ~title:"AutoMap" ~icon:"";
   internalTimer := Sdltimer.get_ticks ();
+  refTimer := 1000 / fps;
   let screen = Sdlvideo.set_video_mode 0 0 [(*`FULLSCREEN;*) `OPENGL; `DOUBLEBUF] in
-    toggleDisplayMode (1);
+    begin let (w, h, _) = Sdlvideo.surface_dims screen in
+      wratio := (float w) /. (float h)
+    end;
+    toggleDisplayMode (2);
     textures := loadTextures [|tex|];
 
-    let filename = findObjFile (obj^".obj") in
+    let filename = findObjFile obj in
+      print_endline "Trying to load 3D model ...";       
+      let model = new obj3D (countVerticesAndFaces (open_in filename)) in
+	print_endline "Loading 3D model ...";
+	model#load filename;
+	print_endline "3D model successfuly loaded !";
+	mainLoop screen model;
+	model#free;
+	Sdl.quit ()
 
-    print_endline "Trying to load 3D model ...";       
-    let model = new obj3D (countVerticesAndFaces (open_in filename)) in
-      print_endline "Loading 3D model ...";
-      model#load filename;
-      print_endline "3D model successfuly loaded !";
-      mainLoop screen model;
-      model#free;
-      Sdl.quit ()
-
-(*let _ = main Sys.argv.(Array.length Sys.argv - 2) Sys.argv.(Array.length Sys.argv - 1)*)
+let _ = 
+  if Array.length Sys.argv >= 3 then
+    begin
+      let obj = Sys.argv.(1) and
+	  tex = Sys.argv.(2) and
+	  fps = if Array.length Sys.argv >= 4 then Sys.argv.(3) else "14" in
+	main obj tex (int_of_string fps)
+    end
+  else
+    print_endline "USAGE : e3D obj_filename texture_filename [fps]"
