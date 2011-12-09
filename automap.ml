@@ -3,272 +3,117 @@
 let _ = GMain.init ()
 
 (*------------------------------- 3D ENGINE ----------------------------------*)
-(* Depencies :
-#directory "+lablGL";;
-#directory "+sdl";;
-#load "lablgl.cma";;
-#load "bigarray.cma";;
-#load "sdl.cma";;
-#load "sdlloader.cma";;
-#load "str.cma";;
-*)
-
-let xrot = ref 0.0 and yrot = ref 0.0 and zrot = ref 0.0;;
-let xpos = ref 0.0 and ypos = ref 0.0 and zpos = ref 0.0;;
-let zoom = ref 1.;;
-let displayMode = ref 1;;
-
-(* Parses vertex found in the input OBJ file *)
-let captureVertices inputFile nb_vertices =
-  let vertices = Array.make nb_vertices (0., 0., 0.) in
-  let rec captureNextVertice n =
-    try
-      match Str.split (Str.regexp_string " ") (input_line inputFile) with
-	| ["v"; x; y; z] ->
-	  Array.set vertices n ((float_of_string x),
-				(float_of_string y),
-				(float_of_string z));
-	  captureNextVertice (n+1);
-	| _ -> captureNextVertice n;
-    with 
-      | End_of_file -> close_in inputFile;
-      | _ -> ();
-  in
-  captureNextVertice 0;
-  vertices;
-;;
-
-(* Converts ["1"; "2"; "3"] in [1; 2; 3] 
-   AND determines the maximum index number (here, 3)  *)
-let rec newFace string_list newface max =
-  match string_list with
-    | [] -> (newface, max)
-    | e::l -> 
-      let i = int_of_string e in
-      if i > max then
-	newFace l (i::newface) i
-      else
-	newFace l (i::newface) max
-;;
-
-(* Parses faces found in the input OBJ file *)
-(* Returns the face list and the maximum number of points of the object *)
-let rec captureFaces inputFile accuList max = 
-  try
-    match Str.split (Str.regexp_string " ") (input_line inputFile) with
-      | e::l when e = "f" -> 
-	let (newface, newmax) = newFace l [] 0 in
-	captureFaces
-	  inputFile
-	  (newface::accuList)
-	  (if newmax > max then newmax else max)
-      | _ -> captureFaces inputFile accuList max;
-  with End_of_file -> close_in inputFile; (accuList, max);
-;;
-
-(* Check if the given file name corresponds to an existing file 
-   If so, it returns the correct filename
-   If not, try to load the default file, and if it fails again
-   exit the program (no way to continue)
-*)
-let rec findObjFile filename = 
-  try
-      ignore(open_in filename);
-      filename;
-  with Sys_error e -> 
-    print_endline e;
-    let newfile = "thegame.obj" in
-    if filename <> newfile then
-      begin
-	print_endline "loading default file";
-	findObjFile newfile;
-      end
-    else
-      begin
-	print_endline "Error while loading default file";
-	exit 1;
-      end
-;;
-
-class obj3D = object (self)
-  val mutable faceList = []
-  val mutable verticeArray = Array.make 0 (0., 0., 0.)
-      
-  method load filename = 
-    let fname = findObjFile filename in
-    let (f, nVertices) = captureFaces (open_in fname) [] 0 in
-    verticeArray <- captureVertices (open_in fname) nVertices;
-    faceList <- f;
-  method faces = faceList
-  method vertices = verticeArray
-end
-;;
-
-let rec drawFace vertices = function
-  | [] -> ();
-  | e::l -> 
-    let (x, y, z) = vertices.(e-1) in
-    let c = (y+.1.0)/.2.0 in
-    GlDraw.color (1., c, c);
-    GlTex.coord2 (x, z);
-    GlDraw.vertex3 (x, y, z);
-    drawFace vertices l;
-;;
-
-(* Display scene and fill screen *)
-let drawScene screen (model:obj3D) =
-  GlMat.mode `projection;
-  GlMat.load_identity ();
-
-  GlMat.ortho 
-    ~x:(-1.5 *. !zoom, 1.5 *. !zoom) 
-    ~y:(-1.5 *. !zoom, 1.5 *. !zoom) 
-    ~z:(-30.5 *. !zoom, 3.5 *. !zoom);
-  GlMat.mode `modelview;
-  GlMat.load_identity (); 
-  GlClear.clear [ `color;`depth];
-
-  GlMat.translate ~x:!xpos ~y:!ypos ~z:!zpos ();
-  GlMat.rotate ~angle:!xrot ~x:1. ();
-  GlMat.rotate ~angle:!yrot ~y:1. ();
-
-  GlMat.scale ~x:0.5 ~y:0.5 ~z:0.5 ();
-  
-  List.iter (fun face -> 
-	       begin match !displayMode with
-		 | 0 | 1 -> GlDraw.polygon_mode `both `line;
-		 | _ -> GlDraw.polygon_mode `both `fill;
-	       end;
-	       begin match List.length face with
-		 | 3 -> GlDraw.begins `triangles;
-		 | 4 -> GlDraw.begins `quads; 
-		 | _ -> GlDraw.begins `polygon;
-	       end;
-	       drawFace model#vertices face;
-	       GlDraw.ends ();
-	    ) model#faces;
-
-  Gl.flush ();
-  Sdlgl.swap_buffers ();
-;;
-
-let toggleDisplayMode () =
-  displayMode := (!displayMode + 1) mod 3;
-  Gl.disable `cull_face;
-  Gl.disable `depth_test;
-  Gl.disable `texture_2d;
-  print_string "Changed display mode to ";
-  begin
-    match !displayMode with
-      | 0 -> print_endline "wireframe";
-      | 1 -> 
-	  GlFunc.depth_range ~near:0.1 ~far:10.0;
-	  Gl.enable `texture_2d;
-	  print_endline "textured wireframe";
-      | 2 -> 
-	  Gl.enable `cull_face;
-	  GlDraw.cull_face `front; 
-	  Gl.enable `depth_test;
-	  GlFunc.depth_mask true;
-	  GlFunc.depth_range ~near:0.1 ~far:10.0;
-	  Gl.enable `texture_2d;
-	  print_endline "textured solid";
-      | _ -> ();
-  end;
-;;
-
-(* Here we handle all events *)
-let rec mainLoop screen model =
-  drawScene screen model;
-  match Sdlevent.wait_event () with
-    | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_ESCAPE}
-    | Sdlevent.QUIT -> Sdl.quit ();
-    | event -> 
-	begin match event with
-	  | Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_z} -> toggleDisplayMode ();
-	  | Sdlevent.MOUSEMOTION e 
-	      when e.Sdlevent.mme_state = [Sdlmouse.BUTTON_RIGHT] ->
-	      yrot := !yrot +. float e.Sdlevent.mme_xrel;
-		let newXrot = !xrot +. float e.Sdlevent.mme_yrel in
-		  if newXrot < 90. && newXrot > -90. then xrot := newXrot;
-	  | Sdlevent.MOUSEMOTION e 
-	      when e.Sdlevent.mme_state = [Sdlmouse.BUTTON_LEFT] ->
-	      xpos := !xpos +. float e.Sdlevent.mme_xrel /. 150.0 *. !zoom;
-		ypos := !ypos -. float e.Sdlevent.mme_yrel /. 150.0 *. !zoom;
-	  | Sdlevent.MOUSEBUTTONDOWN b 
-	      when b.Sdlevent.mbe_button = Sdlmouse.BUTTON_WHEELDOWN ->
-	      zoom := !zoom *. 1.1;
-	  | Sdlevent.MOUSEBUTTONDOWN b 
-	      when b.Sdlevent.mbe_button = Sdlmouse.BUTTON_WHEELUP ->
-	      zoom := !zoom /. 1.1;
-	  | event -> ();
-	      (* print_endline (Sdlevent.string_of_event event);*)
-	end;
-	mainLoop screen model;
-;;
-
-(* Setup the screen *)
-let glscreen () =
-  Sdl.init [`EVERYTHING];
-  Sdlwm.set_caption ~title:"AutoMap" ~icon:"";
-  let screen = Sdlvideo.set_video_mode 500 500 [`OPENGL; `DOUBLEBUF] in
-    
-    toggleDisplayMode ();
-    
-    let green = GlTex.gen_texture () in
-    let image = Sdlloader.load_image "temp.bmp" in
-    let (w, h, _) = Sdlvideo.surface_dims image in
-    let tex = Sdlgl.to_raw image in
-      GlTex.bind_texture `texture_2d green;
-      GlTex.image2d (GlPix.of_raw tex `rgb w h);
-      
-      GlTex.parameter `texture_2d (`min_filter `linear);
-      GlTex.parameter `texture_2d (`mag_filter `linear);
-      
-      (*
-	Gl.enable `lighting;
-	Gl.enable `light0;
-	GlLight.light ~num:0 (`position (1., -1., 1., 1.));
-	GlLight.material `both (`shininess 100.);
-	Gl.enable `color_material;
-	GlLight.color_material `both `specular;
-	GlLight.color_material `both `ambient_and_diffuse;
-      *)
-      
-      (* let filename = (Sys.argv.(Array.length Sys.argv - 1)^".obj") in *)
-      let filename = "test.obj" in
-      let model = new obj3D in
-	model#load filename;
-	mainLoop screen model;
-	
-	Sdl.quit ();
-;;
 
 (*------------------------------ GLOBALS VARS --------------------------------*)
 let step = ref 20
 let list_color = ref []
-let list_height = ref []
-let array_tb = ref (Array.make 0 (GEdit.entry ()))
-let border_clicked = ref false
+let list_height = ref (Array.make 0 0)
 
 (*------------------------ LABLGTK GRAPHIC INTERFACE -------------------------*)
 
 (* Main window *)
 let main_window = GWindow.window
-  ~resizable:false
+  ~resizable:true
   ~title:"AutoMap"
+  ~position:`CENTER
   ~width:800
   ~height:600 ()
 
 (* Vbox1 -contains- bbox1 & hbox0 *)
 let vbox1 = GPack.vbox
-  ~border_width:15
+  ~border_width:0
   ~packing:main_window#add ()
 
 (* Bbox1 -contains- main buttons *)
 let bbox1 = GPack.button_box `HORIZONTAL
-  ~layout:`SPREAD
+  ~layout:`START
   ~packing:(vbox1#pack ~expand:false) ()
+
+(* Toolbar *)
+let toolbar = GButton.toolbar
+  ~orientation:`HORIZONTAL
+  ~style:`BOTH
+  ~tooltips:true
+  ~height:60
+  ~width:800
+  ~packing:(bbox1#pack ~expand:true) ()
+
+let btn_open = GButton.tool_button
+  ~label:"Open"
+  ~stock:`OPEN
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let open_dialog = GWindow.file_selection
+  ~title:"Open a picture"
+  ~parent:main_window
+  ~position:`CENTER_ON_PARENT
+  ~destroy_with_parent:true
+  ~type_hint:`TOOLBAR
+  ~width:650
+  ~height:450 ()
+
+let btn_save = GButton.tool_button
+  ~label:"Save"
+  ~stock:`SAVE
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_reset = GButton.tool_button
+  ~label:"Reset"
+  ~stock:`REFRESH
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_border = GButton.tool_button
+  ~label:"Border"
+  ~stock:`REMOVE
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_gaussian = GButton.tool_button
+  ~label:"Gaussian"
+  ~stock:`FULLSCREEN
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_canny = GButton.tool_button
+  ~label:"Canny"
+  ~stock:`CUT
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_grid = GButton.tool_button
+  ~label:"Grid"
+  ~stock:`JUSTIFY_FILL
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_3d = GButton.tool_button
+  ~label:"Relief"
+  ~stock:`CONVERT
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_about = GButton.tool_button
+  ~label:"About"
+  ~stock:`DIALOG_QUESTION
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let dialog = GWindow.about_dialog
+  ~authors:["Team UMAD"]
+  ~copyright: "Copyright © 2011-2012 UMAD"
+  ~version:"2.0"
+  ~website:"http://umad.fr.nf"
+  ~website_label:"Website"
+  ~destroy_with_parent:true ()    
+
+let btn_quit = GButton.tool_button
+  ~label:"Quit"
+  ~stock:`QUIT
+  ~expand:true
+  ~packing:toolbar#insert ()
 
 (* Hbox0 -contains- bbox2 & image *)
 let hbox0 = GPack.hbox
@@ -282,111 +127,26 @@ let bbox2 = GPack.button_box `VERTICAL
   ~spacing:15
   ~packing:(hbox0#pack ~expand:false) ()
 
-(* Main buttons *)
-let btn_open = GFile.chooser_button
-  ~action:`OPEN
-  ~packing:bbox1#add ()
-
-let btn_border = GButton.button
-  ~label:"Border"
-  ~packing:bbox1#add ()
-
-let btn_grid = GButton.button
-  ~label:"Grid"
-  ~packing:bbox1#add ()
-
-let btn_3d = GButton.button
-  ~label:"Relief"
-  ~packing:bbox1#add ()
-
-let btn_save = GButton.button
-  ~label:"Save"
-  ~packing:bbox1#add ()
-let save_image = GMisc.image
-  ~stock:`SAVE
-  ~packing:btn_save#set_image ()
-
-let btn_settings = GButton.button
-  ~label:"Settings"
-  ~packing:bbox1#add ()
-let settings_image = GMisc.image
-  ~stock:`PREFERENCES
-  ~packing:btn_settings#set_image ()
-
-let btn_reset = GButton.button
-  ~label:"Reset"
-  ~packing:bbox1#add ()
-let reset_image = GMisc.image
-  ~stock:`REFRESH
-  ~packing:btn_reset#set_image ()
-
-(* Filter buttons *)
-let btn_mediumx = GButton.button
-  ~label:"Quick Medium"
-  ~packing:bbox2#add ()
-
-let btn_medium = GButton.button
-  ~label:"Medium Blur"
-  ~packing:bbox2#add ()
-
-let btn_gaussian = GButton.button
-  ~label:"Gaussian Blur"
-  ~packing:bbox2#add ()
-
-let btn_canny = GButton.button
-  ~label:"Canny Border"
-  ~packing:bbox2#add ()
-
-let btn_fusion = GButton.button
-  ~label:"Fusion Canny"
-  ~packing:bbox2#add ()
-
 (* Image *)
 let image_box = GMisc.image
+  ~packing:hbox0#add ()	
+
+let vbox0 = GPack.vbox 
+  ~show:false
   ~packing:hbox0#add ()
   
-(* Settings window *)
-let settings_window = GWindow.window
-  ~title:"Settings"
-  ~resizable:false
-  ~position:`CENTER
-  ~width:280
-  ~height:360 ()
-
-(* Vbox2 -contains- hbox2, vbox3, bbox2 *)
-let vbox2 = GPack.vbox
-  ~packing:settings_window#add ()
-
-(* Hbox2 -contains- Grid step input *)
-let hbox2 = GPack.hbox
-  ~packing:vbox2#add ()
- 
-let label_gridstep = GMisc.label
-  ~text:"Grid step : "
-  ~packing:hbox2#add ()
+let canny_adjust = GData.adjustment
+  ~lower:0.
+  ~upper:255.
+  ~step_incr:1.
+  ~page_size:0. ()
   
-let input_gridstep = GEdit.entry 
-  ~max_length:3
-  ~packing:hbox2#add ()
-
-let label_px = GMisc.label
-  ~text:" px."
-  ~packing:hbox2#add ()
-
-(* Vbox3 -contains- Height <=> Color input *)
-let vbox3 = GPack.vbox
-  ~packing:vbox2#add ()
-
-(* Bbox2 -contains- Ok button *)
-let bbox2 = GPack.button_box `HORIZONTAL
-  ~packing:vbox2#add () 
-
-let btn_ok = GButton.button
-  ~packing:bbox2#add ()
-let ok_image = GMisc.image
-  ~stock:`OK
-  ~packing:btn_ok#set_image ()
-
+let canny_slider = GRange.scale `HORIZONTAL
+  ~digits:1
+  ~adjustment:canny_adjust
+  ~show:false
+  ~packing:vbox0#pack ()
+ 
 (*------------------------------ MAIN FUNCTIONS ------------------------------*)
 
 (* Border *)
@@ -396,30 +156,38 @@ let is_color_in_range c1 c2 range =
     g1 <= g2 + range && g1 >= g2 - range &&
     b1 <= b2 + range && b1 >= b2 - range
 
+let rec list_invert = function
+  | [] -> []
+  | e::l -> (list_invert l)@[e]
+
+exception Too_many_colors
+  
 let print_border src dst =
   let seuil = 20 in
   let x, y, z = Sdlvideo.surface_dims src in
-    for i = 0 to x-1 do
+      for i = 0 to x-1 do
 	for j = 0 to y-1 do
 	  let pix1 = Sdlvideo.get_pixel_color src i j in
 	  let pix2 = Sdlvideo.get_pixel_color src (i+1) j in
 	  let pix3 = Sdlvideo.get_pixel_color src i (j+1) in
-	    if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
-	      begin
-		if not(List.exists (fun x -> x = pix1) !list_color) then
-		  list_color := (pix1::!list_color);
-		Sdlvideo.put_pixel_color dst i j Sdlvideo.black  
-	      end;
-	    if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
-	      begin
-		if not(List.exists (fun x -> x = pix1) !list_color) then
-		  list_color := (pix1::!list_color);
-		Sdlvideo.put_pixel_color dst i j Sdlvideo.black
-	      end;
+	  if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
+	    begin
+	      if not(List.exists (fun x -> x = pix1) !list_color) then
+		list_color := (pix1::!list_color);
+	      Sdlvideo.put_pixel_color dst i j Sdlvideo.black  
+	    end;
+	  if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
+	    begin
+	      if not(List.exists (fun x -> x = pix1) !list_color) then
+		list_color := (pix1::!list_color);
+	      Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+	    end;
 	done;
       done;
-    dst
-
+  list_color := list_invert !list_color;
+  list_height := Array.init (List.length !list_color) (fun i -> i*10);
+  dst
+    
 (* Grid *)
 (* e = step *)
 let print_grid src dst e =
@@ -436,8 +204,8 @@ let print_grid src dst e =
 	done;
       done;
     done;
-  dst
-    
+  dst   
+
 let write_vertex x y z file =
   output_string file ("v " ^ 
 			(string_of_float x) ^ " " ^
@@ -463,7 +231,7 @@ let indexof list x =
     | e::l -> indexofrec l x acc+1 in
     indexofrec list x 0
 
-let get_height color = List.nth !list_height (indexof !list_color color)
+let get_height color = !list_height.(indexof !list_color color)
 
 let trace_points step w h output_file img =
   let file = open_out output_file in 
@@ -549,54 +317,6 @@ let apply_gaussian_mask src dst =
     done;
     dst
 
-(* Medium blur *)
-let apply_medium src dst step =
-  let x, y, z = Sdlvideo.surface_dims src in
-  let color = ref (Sdlvideo.black) in
-    for j = 0 to (y-1) do
-      for i = 0 to (x-1) do
-	color := Sdlvideo.black;
-	let nb_pix = ref 0 in
-	  for stepy = max (-j) (-step) to min (y-1-j) (step) do
-	    for stepx = max (-i) (-step) to min (x-1-i) (step) do
-	      color :=
-		somme_color !color
-		  (Sdlvideo.get_pixel_color src (i+stepx) (j+stepy));
-	      nb_pix := !nb_pix + 1;
-	    done 
-	  done;
-	  color := div_color !color !nb_pix;
-	  Sdlvideo.put_pixel_color dst i j !color;
-      done
-    done;
-    dst
-
-(* Medium Quick blur *)
-let apply_medium_quick src dst step = 
-  let x, y, z = Sdlvideo.surface_dims src in
-  let color = ref (Sdlvideo.black) in
-    for j = 0 to (y-1) do
-      for i = 0 to (x-1) do
-	color := Sdlvideo.black;
-	let nb_pix = ref 0 in
-	  for stepx = max (-i) (-step) to min (x-1-i) (step) do
-	    color := somme_color 
-	      !color 
-	      (Sdlvideo.get_pixel_color src (i+stepx) j);
-	    nb_pix := !nb_pix + 1;
-	  done;
-	  for stepy = max (-j) (-step) to min (y-1-j) (step) do
-	    color := somme_color 
-	      !color 
-	      (Sdlvideo.get_pixel_color src i (j+stepy));
-	    nb_pix := !nb_pix + 1;
-	  done;
-	  color := div_color !color !nb_pix;
-	  Sdlvideo.put_pixel_color dst i j !color;
-      done
-    done;
-    dst
-
 (* Sobel Mask  *)
 let sobelMaskX = [|
   [| -1; 0; 1 |]; 
@@ -623,17 +343,7 @@ let neighbour_white src x y =
 	    return := true
       done
     done;
-    !return 
-
-let apply_fusion src src2 dst = 
-  let x, y, z = Sdlvideo.surface_dims src in
-    for j = 0 to (y-1) do
-      for i = 0 to (x-1) do
-	if Sdlvideo.get_pixel_color src2 i j = Sdlvideo.white then
-	  Sdlvideo.put_pixel_color dst i j Sdlvideo.black
-	done
-      done;
-      dst
+    !return
 
 let apply_sobel_mask src dst =
   let x, y, z = Sdlvideo.surface_dims src in
@@ -667,13 +377,9 @@ let apply_sobel_mask src dst =
 	      end
       done
     done;
-    dst
-
+  dst
+    
 (* Misc Functions *)
-
-let rec generate_height = function 
-  | -1 -> []
-  | n -> (n*10)::generate_height (n-1)
 
 let save_as src path =
   Sdlvideo.save_BMP src path
@@ -685,12 +391,19 @@ let get_string = function
   | Some x -> x
   | _ -> raise Not_found
 
-let recup_int input () =
-  let text = input_gridstep#text in
+let recup_int input =
+  let text = input#text in
   try
     step := int_of_string text;
   with
     | _ -> step := 20
+
+let recup input =
+  let text = input#text in
+  try
+    int_of_string text;
+  with
+    | _ -> 0
 
 let generate_obj w h pas img =
   trace_points pas w h "test.obj" img
@@ -701,85 +414,271 @@ let triple2string (r,g,b) =
     string_of_int g ^ ", " ^
     string_of_int b ^ ")"
 
-let generate_textbox () =
-  if not(!border_clicked) then
-      let length = List.length !list_color in
-	array_tb := Array.make length (GEdit.entry ());
-      for i=0 to length-1 do
-	let hboxt = GPack.hbox ~packing:vbox3#add () in
-	let lablt = GMisc.label ~text:(triple2string (List.nth !list_color i))
-	  ~packing:hboxt#add () in
-	let entryt = GEdit.entry ~packing:hboxt#add () in
-	  ignore(lablt);
-	  !array_tb.(i) <- entryt;
-	  border_clicked := true;
-      done
+(* Settings Windows *)
+let settings_gaussian src =
+  let window1 = GWindow.window
+    ~title:"Gaussian blur settings"
+    ~position:`CENTER
+    ~show:true
+    ~resizable:false
+    ~width:400
+    ~height:250 () in
+  let vbox1 = GPack.vbox
+    ~packing:window1#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~width:8
+    ~text:"Sigma coefficient"
+    ~packing:hbox1#add () in
+  let adjust = GData.adjustment
+    ~lower:0.
+    ~upper:100.
+    ~step_incr:0.1
+    ~page_size:0. () in
+  let adjust2 = GData.adjustment
+    ~lower:1.
+    ~upper:5.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let sigma_coef = GRange.scale `HORIZONTAL
+    ~digits:1
+    ~adjustment:adjust
+    ~packing:hbox1#add () in
+  let hbox2 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~width:8
+    ~text:"Step"
+    ~packing:hbox2#add () in
+  let step = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust2
+    ~packing:hbox2#add () in
+  let bbox1 = GPack.button_box `HORIZONTAL
+    ~layout:`SPREAD
+    ~packing:vbox1#add () in
+  let btn_cancel = GButton.button
+    ~label:"Cancel"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`CLOSE
+    ~packing:btn_cancel#set_image () in
+  let btn_ok = GButton.button
+    ~label:"Apply"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`APPLY
+    ~packing:btn_ok#set_image () in
+  let sigma_value = sigma_coef#adjustment#value in
+  let step_value = step#adjustment#value in
+  ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+  btn_ok#connect#clicked
+    ~callback:(fun _ -> let dst = Sdlloader.load_image "temp.bmp" in
+			save_as (apply_gaussian_mask src dst) "temp.bmp";
+			image_box#set_file "temp.bmp";
+			window1#destroy ())
+
+let settings_canny src =
+  let window1 = GWindow.window
+    ~title:"Canny settings"
+    ~position:`CENTER
+    ~show:true
+    ~resizable:false
+    ~width:400
+    ~height:250 () in
+  let vbox1 = GPack.vbox
+    ~packing:window1#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~width:8
+    ~text:"Low Treshold"
+    ~packing:hbox1#add () in
+  let adjust = GData.adjustment
+    ~lower:0.
+    ~upper:255.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let adjust2 = GData.adjustment
+    ~lower:0.
+    ~upper:255.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let lowtreshold = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust
+    ~packing:hbox1#add () in
+  let hbox2 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~width:8
+    ~text:"High Treshold"
+    ~packing:hbox2#add () in
+  let hightreshold = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust2
+    ~packing:hbox2#add () in
+  let bbox1 = GPack.button_box `HORIZONTAL
+    ~layout:`SPREAD
+    ~packing:vbox1#add () in
+  let btn_cancel = GButton.button
+    ~label:"Cancel"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`CLOSE
+    ~packing:btn_cancel#set_image () in
+  let btn_ok = GButton.button
+    ~label:"Apply"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`APPLY
+    ~packing:btn_ok#set_image () in
+  let low_treshold = lowtreshold#adjustment#value in
+  let high_treshold = hightreshold#adjustment#value in
+  ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+  btn_ok#connect#clicked
+    ~callback:(fun _ -> let dst = Sdlloader.load_image "temp.bmp" in
+			save_as (apply_sobel_mask src dst) "canny.bmp";
+			image_box#set_file "canny.bmp";
+			window1#destroy (); vbox0#misc#show (); canny_slider#misc#show ());
+  lowtreshold#adjustment#set_value 40.;
+  hightreshold#adjustment#set_value 45.
+    
+
+let generate_cfg () =
+  let fichier = open_out "cfg.txt" in
+  for i = 0 to (List.length !list_color)-1 do
+    output_string fichier ((triple2string(List.nth !list_color i)) ^ " "
+			   ^ (string_of_int(!list_height.(i)))^"\n");
+  done;
+  close_out fichier
+
+
+let settings_sampling src = 
+  let nb_colors = List.length !list_color in
+  let window1 = GWindow.window
+    ~position:`CENTER
+    ~title:"Sampling settings"
+    ~width:250
+    ~height:(30 * nb_colors + 100)
+    ~show:true
+    ~resizable:false () in
+  let vbox1 = GPack.vbox
+    ~packing:window1#add () in
+  let textbox_array = Array.make nb_colors (GEdit.entry ())  in
+  for i=0 to (nb_colors - 1) do
+    let tb = GEdit.entry
+      ~packing:vbox1#add () in
+    let (r, g, b) = List.nth !list_color i in
+    let color = Printf.sprintf "#%02x%02x%02x" r g b in
+    tb#misc#modify_base [`NORMAL, `NAME color];
+    textbox_array.(i) <- tb;
+  done;
+  for i=0 to (nb_colors - 1) do
+    textbox_array.(i)#set_text (string_of_int !list_height.(i))
+  done;
+  let bbox1 = GPack.button_box `HORIZONTAL
+    ~layout:`SPREAD
+    ~packing:vbox1#add () in
+  let btn_cancel = GButton.button
+    ~label:"Cancel"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`CLOSE
+    ~packing:btn_cancel#set_image () in
+  let btn_ok = GButton.button
+    ~label:"Apply"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`APPLY
+    ~packing:btn_ok#set_image () in
+  ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+  btn_ok#connect#clicked
+    ~callback:(fun _ ->
+      list_height := Array.make nb_colors 0;
+      for i=0 to (nb_colors - 1) do
+	!list_height.(i) <- (recup textbox_array.(i));
+      done;
+      window1#destroy ();
+      generate_cfg ();
+      let (w, h, _) = Sdlvideo.surface_dims src in
+      generate_obj w h !step src;
+      E3d.glscreen ())
+
+let settings_grid src =
+  let window1 = GWindow.window
+    ~position:`CENTER
+    ~title:"Grid settings"
+    ~width:320
+    ~height:120
+    ~show:true
+    ~resizable:false () in
+  let vbox1 = GPack.vbox
+    ~packing:window1#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~text:"Grid Step "
+    ~packing:hbox1#add () in
+  let step_box = GEdit.entry
+    ~packing:hbox1#add () in
+  let _ = GMisc.label
+    ~text:" px"
+    ~packing:hbox1#add () in
+  let bbox1 = GPack.button_box `HORIZONTAL
+    ~layout:`SPREAD
+    ~packing:vbox1#add () in
+  let btn_cancel = GButton.button
+    ~label:"Cancel"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`CLOSE
+    ~packing:btn_cancel#set_image () in
+  let btn_ok = GButton.button
+    ~label:"Apply"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`APPLY
+    ~packing:btn_ok#set_image () in
+  ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+  btn_ok#connect#clicked
+    ~callback:(fun _ -> recup_int step_box;
+	       let dst = Sdlloader.load_image "temp.bmp" in
+	       save_as (print_grid src dst (!step)) "temp_grid.bmp";
+	       image_box#set_file "temp_grid.bmp";
+	       window1#destroy ())
 
 (* Button functions *)
 let on_reset src =
+  list_color := [];
   save_as src "temp.bmp";
   image_box#set_file "temp.bmp";
+  canny_slider#misc#hide ();
+  vbox0#misc#hide ();
   ()
 
 let on_border src =
   let dst = Sdlloader.load_image "temp.bmp" in
     save_as (print_border src dst) "temp.bmp";
     image_box#set_file "temp.bmp";
-    (* ignore(generate_textbox ()); *)
-    list_height := generate_height ((List.length !list_color)-1);
-    let fichier = open_out "cfg.txt" in
-    for i = 0 to (List.length !list_color)-1 do
-      output_string fichier ((triple2string(List.nth !list_color i))^" "^(string_of_int(List.nth !list_height i))^"\n");
-    done;
-    close_out fichier;
     ()
       
 let on_grid src =
-  let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (print_grid src dst (!step)) "temp_grid.bmp";
-    image_box#set_file "temp_grid.bmp";
-    ()
+  let _ = settings_grid src in ()
 
 let on_relief src =
-  let (w, h, _) = Sdlvideo.surface_dims src in
-    generate_obj w h !step src;
-    glscreen ();
-    ()
+  let _ = settings_sampling src in ()
 
-let on_mediumx src =
-  let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (apply_medium_quick src dst 1) "temp.bmp";
-    image_box#set_file "temp.bmp";
-    ()
-
-let on_medium src =
-  let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (apply_medium src dst 1) "temp.bmp";
-    image_box#set_file "temp.bmp";
-    ()
-  
 let on_gaussian src =
-  let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (apply_gaussian_mask src dst) "temp.bmp";
-    image_box#set_file "temp.bmp";
-    ()
+  let _ = settings_gaussian src in ()
 
 let on_canny src =
-  let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (apply_sobel_mask src dst) "canny.bmp";
-    image_box#set_file "canny.bmp";
-    ()
-
-let on_fusion src =
-  let dst = Sdlloader.load_image "temp.bmp" in
-  let src2 = Sdlloader.load_image "canny.bmp" in
-    save_as (apply_fusion src src2 dst) "temp.bmp";
-    image_box#set_file "temp.bmp";
-    ()
+  let _ = settings_canny src in ()
 
 (* ================================= MAIN =================================== *)
 let sdl_launch () = 
-  let path = get_string btn_open#filename in
+  let path = open_dialog#filename in
   let src = Sdlloader.load_image path in
     image_box#set_file path;
     save_as src "temp.bmp";
@@ -793,30 +692,44 @@ let sdl_launch () =
 	     ~callback:(fun _ -> save "resultat.bmp"));
     ignore(btn_3d#connect#clicked
 	     ~callback:(fun _ -> on_relief src));
-    ignore(btn_mediumx#connect#clicked
-	     ~callback:(fun _ -> on_mediumx src));
-    ignore(btn_medium#connect#clicked
-	     ~callback:(fun _ -> on_medium src));
     ignore(btn_gaussian#connect#clicked
 	     ~callback:(fun _ -> on_gaussian src));
     ignore(btn_canny#connect#clicked
 	     ~callback:(fun _ -> on_canny src));
-    ignore(btn_fusion#connect#clicked
-	     ~callback:(fun _ -> on_fusion src));
     ()
       
 (* Main *)
+
+let man_help filename = 
+  let file = open_in filename in 
+  try
+    while true do
+      Printf.printf "%s\n" (input_line file) 
+    done
+  with End_of_file -> close_in file; ()
+    
 let _ =
-  ignore(main_window#connect#destroy
-	   ~callback:GMain.quit);
-  ignore(input_gridstep#connect#changed
-	   ~callback:(recup_int input_gridstep));
-  ignore(settings_window#event#connect#delete
-	   ~callback:(fun _ -> settings_window#misc#hide (); true));
-  ignore(btn_ok#connect#clicked
-	   ~callback:(fun _ -> settings_window#misc#hide ()));
-  ignore(btn_settings#connect#clicked
-	   ~callback:(fun _ -> settings_window#misc#show ()));
-  ignore(btn_open#connect#selection_changed (fun _ -> sdl_launch ()));
-  main_window#show ();
-  GMain.main ()
+  if Array.length Sys.argv >= 2 then 
+    match Sys.argv.(1) with
+      |"-h" | "--h" | "help" |"-help"|"--help"|"man" ->
+	man_help "README"
+      |_ -> print_endline "Usage: automap 
+Try `./automap --help' for more information."
+  else
+    begin
+      ignore(main_window#connect#destroy
+	       ~callback:GMain.quit);
+      ignore(btn_quit#connect#clicked ~callback:GMain.quit);
+      ignore(btn_open#connect#clicked (fun () -> ignore(open_dialog#run ())));
+      ignore(btn_about#connect#clicked (fun () ->
+	ignore(dialog#run ()); dialog#misc#hide ()));
+      ignore(open_dialog#ok_button#connect#clicked (fun _ ->
+	sdl_launch ();
+	open_dialog#misc#hide ()));
+      ignore(open_dialog#cancel_button#connect#clicked (fun _ ->
+	open_dialog#misc#hide ()));
+      main_window#show ();
+      GMain.main ()
+    end
+      
+      
