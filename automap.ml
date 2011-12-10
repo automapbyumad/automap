@@ -2,12 +2,14 @@
 
 let _ = GMain.init ()
 
-(*------------------------------- 3D ENGINE ----------------------------------*)
-
 (*------------------------------ GLOBALS VARS --------------------------------*)
 let step = ref 20
 let list_color = ref []
 let list_height = ref (Array.make 0 0)
+let image_x = ref max_int and image_y = ref max_int;;
+let firstime = ref false
+let temp = ref (Obj.magic 0)
+let src = ref (Obj.magic 0)
 
 (*------------------------ LABLGTK GRAPHIC INTERFACE -------------------------*)
 
@@ -16,8 +18,8 @@ let main_window = GWindow.window
   ~resizable:true
   ~title:"AutoMap"
   ~position:`CENTER
-  ~width:800
-  ~height:600 ()
+  ~width:1024
+  ~height:675 ()
 
 (* Vbox1 -contains- bbox1 & hbox0 *)
 let vbox1 = GPack.vbox
@@ -35,7 +37,7 @@ let toolbar = GButton.toolbar
   ~style:`BOTH
   ~tooltips:true
   ~height:60
-  ~width:800
+  ~width:1024
   ~packing:(bbox1#pack ~expand:true) ()
 
 let btn_open = GButton.tool_button
@@ -68,6 +70,12 @@ let btn_reset = GButton.tool_button
 let btn_border = GButton.tool_button
   ~label:"Border"
   ~stock:`REMOVE
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_noise = GButton.tool_button
+  ~label:"Clear Noise"
+  ~stock:`CLEAR
   ~expand:true
   ~packing:toolbar#insert ()
 
@@ -131,21 +139,34 @@ let bbox2 = GPack.button_box `VERTICAL
 let image_box = GMisc.image
   ~packing:hbox0#add ()	
 
-let vbox0 = GPack.vbox 
-  ~show:false
-  ~packing:hbox0#add ()
-  
 let canny_adjust = GData.adjustment
   ~lower:0.
-  ~upper:255.
+  ~upper:254.
   ~step_incr:1.
   ~page_size:0. ()
-  
+ 
+let hbox_canny = GPack.hbox
+  ~show:false
+  ~packing:vbox1#add ()
+let _ = GPack.hbox
+  ~packing:hbox_canny#add ()
+
+let lbl_canny = GMisc.label
+  ~text:"Gray component"
+  ~show:false
+  ~packing:hbox_canny#add ()
 let canny_slider = GRange.scale `HORIZONTAL
-  ~digits:1
+  ~digits:0
   ~adjustment:canny_adjust
   ~show:false
-  ~packing:vbox0#pack ()
+  ~packing:hbox_canny#add ()
+
+let hbox_canny2 = GPack.hbox
+  ~packing:hbox_canny#add ()
+let btn_finalize = GButton.button
+  ~label:"Finalize"
+  ~show:false
+  ~packing:hbox_canny2#add ()
  
 (*------------------------------ MAIN FUNCTIONS ------------------------------*)
 
@@ -162,28 +183,33 @@ let rec list_invert = function
 
 exception Too_many_colors
   
-let print_border src dst =
-  let seuil = 20 in
+let print_border src =
+  let seuil = 30 in
   let x, y, z = Sdlvideo.surface_dims src in
-      for i = 0 to x-1 do
-	for j = 0 to y-1 do
-	  let pix1 = Sdlvideo.get_pixel_color src i j in
-	  let pix2 = Sdlvideo.get_pixel_color src (i+1) j in
-	  let pix3 = Sdlvideo.get_pixel_color src i (j+1) in
-	  if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
-	    begin
-	      if not(List.exists (fun x -> x = pix1) !list_color) then
-		list_color := (pix1::!list_color);
-	      Sdlvideo.put_pixel_color dst i j Sdlvideo.black  
-	    end;
-	  if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
-	    begin
-	      if not(List.exists (fun x -> x = pix1) !list_color) then
-		list_color := (pix1::!list_color);
-	      Sdlvideo.put_pixel_color dst i j Sdlvideo.black
-	    end;
-	done;
-      done;
+  let dst = Sdlvideo.create_RGB_surface_format src [] x y in
+  let _ = list_color := [] in
+  for i = 0 to x-1 do
+    for j = 0 to y-1 do
+      let pix1 = Sdlvideo.get_pixel_color src i j in
+      let pix2 = Sdlvideo.get_pixel_color src (i+1) j in
+      let pix3 = Sdlvideo.get_pixel_color src i (j+1) in
+      if pix1 <> pix2 && not(is_color_in_range pix1 pix2 seuil) then
+	begin
+	  if not(List.exists (fun x -> x = pix1) !list_color) then
+	    list_color := (pix1::!list_color);
+	  Sdlvideo.put_pixel_color dst i j Sdlvideo.black  
+	end
+      else
+	if pix1 <> pix3 && not(is_color_in_range pix1 pix3 seuil) then
+	  begin
+	    if not(List.exists (fun x -> x = pix1) !list_color) then
+	      list_color := (pix1::!list_color);
+	    Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+	  end
+	else
+	  Sdlvideo.put_pixel_color dst i j pix1
+    done;
+  done;
   list_color := list_invert !list_color;
   list_height := Array.init (List.length !list_color) (fun i -> i*10);
   dst
@@ -241,9 +267,9 @@ let trace_points step w h output_file img =
 	  let height =
 	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
 	    write_vertex 
-	      (float (x*step)/.float w) 
-	      (float height /. 300.) 
-	      (float (y/2*step)/.float h) 
+	      (float (x*step) -. (float w /.2.))
+	      (float height) 
+	      (float (y/2*step) -. (float h /. 2.)) 
 	      file
 	done
       else
@@ -251,9 +277,9 @@ let trace_points step w h output_file img =
 	  let height =
 	    get_height (Sdlvideo.get_pixel_color img (x*step) (y/2*step)) in
 	    write_vertex 
-	      ((float (x*step) +. (float step) /. 2.) /. float w)
-	      (float height /. 300.)
-	      ((float (y/2*step) +. (float step) /. 2.) /. float h)
+	      ((float (x*step) +. (float step) /. 2.) -. (float w /. 2.))
+	      (float height)
+	      ((float (y/2*step) +. (float step) /. 2.) -. (float h /. 2.))
 	      file;
 	done;
     done;
@@ -273,49 +299,82 @@ let trace_points step w h output_file img =
       close_out file
 
 (* Misc - Filters *)
-let gaussianMask = [|
-  [| 2; 4; 5; 4; 2 |]; 
-  [| 4; 9; 12; 9; 4 |]; 
-  [| 5; 12; 15; 12; 5 |];
-  [| 4; 9; 12; 9; 4 |];
-  [| 2; 4; 5; 4; 2 |]
-|]
+let pi = 4.0 *. atan 1.0
 
 let rec pow x = function
   | 0 -> 1
   | n -> x * pow x (n-1)
 
+(* c'est moche mais bon pour eviter de faire bloquer tout le programme *)
+let rec pow_f x = function
+  | 0 -> 1.
+  | n -> x *. pow_f x (n-1)
+
+let gaussian_pixel x y sigma =
+  (1. /. (2. *. pi *. (pow_f sigma 2))) *. 
+    exp(-.(((pow_f x 2) +. (pow_f y 2)) /. (2. *. (pow_f sigma 2))))
+
+let generate_gaussian step nb sigma =
+  let mask = Array.make (pow nb 2) 0. in
+  let pos = ref 0 in
+  for j = -step to step do
+    for i = -step to step do
+      pos := (i + step) + (j + step) * nb;
+      mask.(!pos) <- gaussian_pixel (float_of_int i) (float_of_int j) sigma;
+    done
+  done;
+  mask
+
 let multi_color color coef =
   let (r, g, b) = color in
-    (r*coef, g*coef, b*coef)
+  (r * coef, g * coef, b * coef)
+
+let multi_color_f color coef =
+  let (r, g, b) = color in
+  ((float_of_int r) *. coef, (float_of_int g) *. coef, (float_of_int b) *.coef)
 
 let div_color color coef =
   let (r, g, b) = color in 
-    (r/coef, g/coef, b/coef)
+  (r / coef, g / coef, b / coef)
+
+let div_color_f color coef =
+  let (r, g, b) = color in 
+  (int_of_float (r /. coef), int_of_float (g /. coef), int_of_float (b /. coef))
 
 let somme_color (r1, g1, b1) (r2, g2, b2) =
-  (r1+r2, g1+g2, b1+b2)
+  (r1 + r2, g1 + g2, b1 + b2)
+
+let somme_color_f (r1, g1, b1) (r2, g2, b2) =
+  (r1 +. r2, g1 +. g2, b1 +. b2)
+
+let pair_int_of_float (r, g, b) =
+  (int_of_float r, int_of_float g, int_of_float b)
 
 (* Gaussian blur *)
-let apply_gaussian_mask src dst = 
+let apply_gaussian_mask src step sigma = 
+  let nb = 2 * step + 1 in
+  let mask = generate_gaussian step nb sigma in
   let x, y, z = Sdlvideo.surface_dims src in
-  let color = ref (Sdlvideo.get_pixel_color src 0 0) in
-    for j = 2 to (y-2) do 
-      for i = 2 to (x-2) do
-	color := Sdlvideo.black;
-	for offsety = -2 to 2 do
-	  for offsetx = -2 to 2 do
-	    let colorcoef = multi_color
-	      (Sdlvideo.get_pixel_color src (i+offsetx) (j+offsety)) 
-	      (gaussianMask.(offsety+2)).(offsetx+2) in
-	      color := somme_color !color colorcoef;
+  let dst = Sdlvideo.create_RGB_surface_format src [] x y in
+  let color = ref (0., 0., 0.) in
+    for j = 0 to (y-1) do 
+      for i = 0 to (x-1) do
+	color := (0., 0., 0.);
+	let sum_coef = ref 0. in
+	for offsety = max (-j) (-step) to min (y-1-j) step do
+	  for offsetx = max (-i) (-step) to min (x-1-i) step do
+	    let coef = mask.((offsetx + step) + (offsety + step) * nb) in
+	    let colorcoef = multi_color_f
+	      (Sdlvideo.get_pixel_color src (i+offsetx) (j+offsety))
+	      coef in
+	    color := somme_color_f !color colorcoef;
+	    sum_coef := !sum_coef +. coef;
 	  done
 	done;
-	color := div_color !color 159;
-	Sdlvideo.put_pixel_color dst i j !color;
+	Sdlvideo.put_pixel_color dst i j (div_color_f !color !sum_coef);
       done
     done;
-    dst
+  dst
 
 (* Sobel Mask  *)
 let sobelMaskX = [|
@@ -333,50 +392,244 @@ let sobelMaskY = [|
 let grey color =
   let (r, g, b) = color in
     (r + g + b) / 3
-
-let neighbour_white src x y =
+      
+let neighbour_white src x y w h =
   let return = ref false in
-    for j = -1 to 1 do
-      for i = -1 to 1 do
-	if i <> 0 || j <> 0 then
-	  if Sdlvideo.get_pixel_color src (x+i) (y+j) = Sdlvideo.white then
-	    return := true
-      done
-    done;
-    !return
-
-let apply_sobel_mask src dst =
+  for j = -1 to 1 do
+    for i = -1 to 1 do
+      let n_x = (x+i) in
+      let n_y = (y+j) in
+      if n_x >= 0 && n_x < w && n_y >= 0 && n_y < h && (i <> 0 || j <> 0) then
+	if Sdlvideo.get_pixel_color src n_x n_y = Sdlvideo.white then
+	  return := true
+    done
+  done;
+  !return 
+    
+let apply_sobel_mask src low_treshold high_treshold =
   let x, y, z = Sdlvideo.surface_dims src in
-    for j = 0 to (y-1)  do 
-      for i = 0 to (x-1) do
-	let grad_v = ref 0 and grad_h = ref 0 in
-	  for offsety = max (-j) (-1) to min (y-1-j) 1 do
-	    for offsetx = max (-i) (-1) to min (x-1-i) 1 do
-	      let color_grey = 
-		grey (Sdlvideo.get_pixel_color src (i+offsetx) (j+offsety)) in
-		grad_v :=
-		  !grad_v + color_grey * (sobelMaskX.(offsety+1)).(offsetx+1);
-		grad_h :=
-		  !grad_h + color_grey * (sobelMaskY.(offsety+1)).(offsetx+1);
-	    done
+  let dst = Sdlvideo.create_RGB_surface_format src [] x y in
+  for j = 0 to (y-1) do 
+    for i = 0 to (x-1) do
+      let grad_v = ref 0 and grad_h = ref 0 in
+      for offsety = max (-j) (-1) to min (y-1-j) 1 do
+	for offsetx = max (-i) (-1) to min (x-1-i) 1 do
+	  let color_grey = 
+	    grey (Sdlvideo.get_pixel_color src (i+offsetx) (j+offsety)) in
+	  grad_v :=
+	    !grad_v + color_grey * (sobelMaskX.(offsety+1)).(offsetx+1);
+	  grad_h :=
+	    !grad_h + color_grey * (sobelMaskY.(offsety+1)).(offsetx+1);
+	done
+      done;
+      let length = sqrt (float_of_int (pow !grad_v 2 + pow !grad_h 2)) in
+      if length < low_treshold then
+	Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+      else
+	begin
+	  if length > high_treshold then
+	    Sdlvideo.put_pixel_color dst i j Sdlvideo.white
+	  else
+	    begin
+	      if neighbour_white dst i j x y then
+		Sdlvideo.put_pixel_color dst i j Sdlvideo.white
+	      else
+		Sdlvideo.put_pixel_color dst i j Sdlvideo.black
+	    end
+	end
+    done
+  done;
+  dst
+
+let find_no_mark mark =
+  let no_modif = Sdlloader.load_image "mark.bmp" in
+  let w, h, p = Sdlvideo.surface_dims mark in
+  let c = ref Sdlvideo.black in
+  let a = ref 0 in
+  for j = 0 to (h-1) do
+    for i = 0 to (w-1) do
+      if Sdlvideo.get_pixel_color no_modif i j = Sdlvideo.white then
+	begin
+	  a := i;
+	  while Sdlvideo.get_pixel_color no_modif !a j = Sdlvideo.white do
+	    a := !a + 1;
 	  done;
-	  let length = sqrt (float_of_int (pow !grad_v 2 + pow !grad_h 2)) in
-	    if length < 40. then
-	      Sdlvideo.put_pixel_color dst i j Sdlvideo.black
-	    else
-	      begin
-		if length > 45. then
-		  Sdlvideo.put_pixel_color dst i j Sdlvideo.white
-		else
-		  begin
-		    if neighbour_white dst i j then 
-		      Sdlvideo.put_pixel_color dst i j Sdlvideo.white
-		    else
-		      Sdlvideo.put_pixel_color dst i j Sdlvideo.black
-		  end
-	      end
+	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif !a j);
+	  a := i;
+	  while Sdlvideo.get_pixel_color no_modif !a j = Sdlvideo.white do
+	    a := !a - 1;
+	  done;
+	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif !a j);
+	  a := j;
+	  while Sdlvideo.get_pixel_color no_modif i !a = Sdlvideo.white do
+	    a := !a + 1;
+	  done;
+	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif i !a);
+	  a := j;
+	  while Sdlvideo.get_pixel_color no_modif i !a = Sdlvideo.white do
+	    a := !a - 1;
+	  done;
+	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif i !a);
+	  c := div_color !c 4;
+	  Sdlvideo.put_pixel_color mark i j !c;
+	end
+    done
+  done;
+  mark
+
+(* Noise Reduction *)
+
+let is_in_range src tgt h =
+  let (r, g, b) = src in
+  let (rt, gt, bt) = tgt in
+  (abs (r-rt) < h) &&
+    (abs (g-gt) < h) &&
+    (abs (b-bt) < h)
+
+let max tbl = 
+  let max_color = ref (0,0,0) in
+  let max = ref 0 in
+  let func (r,g,b) v =
+    if v>(!max) then
+      begin
+	max_color := (r,g,b);
+	max := v
+      end; () in
+  Hashtbl.iter func tbl;
+  !max_color
+    
+let unnoise img step =
+  let (w, h, _) = Sdlvideo.surface_dims img in
+  let dst = Sdlvideo.create_RGB_surface_format img [] w h in
+  let hash_table = Hashtbl.create ((2*step+1)*(2*step+1)) in
+  for y=0 to (h-1) do
+    for x=0 to (w-1) do
+      for j=step downto (-step) do
+	for i=step downto (-step) do
+	  if ( x-i >= 0 && y-j >= 0 && x-i < w && y-j < h) then 
+	    begin
+	      let color = Sdlvideo.get_pixel_color img (x-i) (y-j) in
+	      if (Hashtbl.mem hash_table color) then
+		let nb = Hashtbl.find hash_table color in
+		Hashtbl.replace hash_table color (nb+1)
+	      else
+		Hashtbl.add hash_table color 1
+	    end
+	done
+      done;
+      Sdlvideo.put_pixel_color dst x y (max hash_table);
+      Hashtbl.clear hash_table
+    done
+  done;
+  dst
+
+let reduct img step =
+  let (w, h, _) = Sdlvideo.surface_dims img in
+  let dst = Sdlvideo.create_RGB_surface_format img []
+    (int_of_float (ceil ((float_of_int w) /. (float_of_int step))))
+    (int_of_float (ceil ((float_of_int h) /. (float_of_int step)))) in
+  let (wdst, hdst, _) = Sdlvideo.surface_dims dst in
+  let hash_table = Hashtbl.create ((2*step+1)*(2*step+1)) in
+  for yimg=0 to (hdst-1) do
+    for ximg=0 to (wdst-1) do
+      let y=(yimg*step) and x=(ximg*step) in
+      for j=step downto (-step) do
+	for i=step downto (-step) do
+	  if ( x-i >= 0 && y-j >= 0 && x-i < w && y-j < h) then 
+	    begin
+	      let color = Sdlvideo.get_pixel_color img (x-i) (y-j) in
+	      if (Hashtbl.mem hash_table color) then
+		let nb = Hashtbl.find hash_table color in
+		Hashtbl.replace hash_table color (nb+1)
+	      else
+		Hashtbl.add hash_table color 1
+	    end
+	done
+      done;
+      Sdlvideo.put_pixel_color dst ximg yimg (max hash_table);
+      Hashtbl.clear hash_table
+    done
+  done;
+  dst
+
+let reform img step=
+  let (w, h, _) = Sdlvideo.surface_dims img in
+  let dst = Sdlvideo.create_RGB_surface_format img [] (w*step+1) (h*step+1) in
+  for y=0 to (h-1) do
+    for x=0 to (w-1) do
+      let color = Sdlvideo.get_pixel_color img x y in
+      for j=0 to (2*step+1) do
+	for i=0 to (2*step+1) do
+	  let ry=(y*step) and rx=(x*step) in
+	  Sdlvideo.put_pixel_color dst (rx+i) (ry+j) color
+	done
       done
-    done;
+    done
+  done;
+  dst
+
+let rec contains_near color range = function
+  | [] -> false
+  | e::l when (is_in_range color e range) -> true
+  | e::l -> contains_near color range l
+
+let build_max_color n tbl range =
+  let rec aux i n list tbl range =
+    if (i=n) then list
+    else
+    let i_max = max tbl in
+    if not(contains_near i_max range list) then
+      begin
+	Hashtbl.remove tbl i_max;
+	aux (i+1) n (i_max::list) tbl range
+      end
+    else
+      begin
+	Hashtbl.remove tbl i_max;
+	aux i n list tbl range
+      end in
+  aux 0 n [] tbl range
+  
+
+let n_max img step n range =
+  let (w, h, _) = Sdlvideo.surface_dims img in
+  let tbl = Hashtbl.create (w*h) in
+  for y=0 to (h-1) do
+    for x=0 to (w-1) do
+      let color = Sdlvideo.get_pixel_color img x y in
+      if (Hashtbl.mem tbl color) then
+	let nb = Hashtbl.find tbl color in
+	Hashtbl.replace tbl color (nb+1)
+      else
+	Hashtbl.add tbl color 1
+    done
+  done;
+  build_max_color n tbl range
+
+let nearest color list = 
+  let rec aux min min_color (r,g,b) = function
+    | [] -> min_color
+    | (rt,gt,bt)::l ->
+      let somme = abs(r-rt)+abs(g-gt)+abs(b-bt) in
+      if (somme < min) then
+	aux somme (rt, gt, bt) (r,g,b) l
+      else
+	aux min min_color (r,g,b) l in
+  aux (255*3) (255,255,255) color list
+      
+
+let replace_near img step list =
+  let (w, h, _) = Sdlvideo.surface_dims img in
+  let dst = Sdlvideo.create_RGB_surface_format img [] w h in
+  for y=0 to (h-1) do
+    for x=0 to (w-1) do
+      begin
+	let color = Sdlvideo.get_pixel_color img x y in
+	let new_color = nearest color list in
+	Sdlvideo.put_pixel_color dst x y new_color
+      end
+    done
+  done;
   dst
     
 (* Misc Functions *)
@@ -384,9 +637,13 @@ let apply_sobel_mask src dst =
 let save_as src path =
   Sdlvideo.save_BMP src path
 
+let save_tmp dst =
+  Sdlvideo.save_BMP dst "temp.bmp"
+
 let save path =
   Sdlvideo.save_BMP (Sdlloader.load_image "temp.bmp") path
     
+
 let get_string = function
   | Some x -> x
   | _ -> raise Not_found
@@ -408,6 +665,32 @@ let recup input =
 let generate_obj w h pas img =
   trace_points pas w h "test.obj" img
 
+(* Ma fonction fill new *)
+let fill canny dst x y color =
+  let mark = Sdlloader.load_image "mark.bmp" in
+  let w, h, p = Sdlvideo.surface_dims canny in
+  let rec fill_rec x y =
+    Sdlvideo.put_pixel_color canny x y Sdlvideo.white;
+    Sdlvideo.put_pixel_color mark x y color;
+    Sdlvideo.put_pixel_color dst x y color;
+    let a = ref 0 and b = ref 0 in
+    for j = -1 to 1 do
+      for i = -1 to 1 do
+	if i <> 0 || j <> 0 then
+	  begin
+	    a := x+i;
+	    b := y+j;
+	    if !a > 0 && !a < w-1 && !b > 0 && !b < h-1 
+	      && Sdlvideo.get_pixel_color canny !a !b = Sdlvideo.black then
+	      fill_rec !a !b;
+	  end;
+      done
+    done
+  in
+  fill_rec x y;
+  save_as mark "mark.bmp";
+  dst
+
 (* Height <> Colors textboxes *)
 let triple2string (r,g,b) =
   "(" ^ string_of_int r ^ ", " ^
@@ -415,6 +698,89 @@ let triple2string (r,g,b) =
     string_of_int b ^ ")"
 
 (* Settings Windows *)
+let settings_noise src =
+  let window1 = GWindow.window
+    ~title:"Noise reduction settings"
+    ~position:`CENTER
+    ~show:true
+    ~resizable:false
+    ~width:400
+    ~height:250 () in
+  let vbox1 = GPack.vbox
+    ~packing:window1#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~text:"Treshold"
+    ~packing:hbox1#add () in
+  let adjust = GData.adjustment
+    ~lower:1.
+    ~upper:8.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let treshold = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust
+    ~packing:hbox1#add () in
+  let hbox2 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~text:"Color depth"
+    ~packing:hbox2#add () in
+  let adjust2 = GData.adjustment
+    ~lower:1.
+    ~upper:16.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let nb_color = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust2
+    ~packing:hbox2#add () in
+  let hbox3 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~text:"Color range"
+    ~packing:hbox3#add () in
+  let adjust3 = GData.adjustment
+    ~lower:0.
+    ~upper:255.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let range = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust3
+    ~packing:hbox3#add () in
+  let bbox1 = GPack.button_box `HORIZONTAL
+    ~layout:`SPREAD
+    ~packing:vbox1#add () in
+  let btn_cancel = GButton.button
+    ~label:"Cancel"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`CLOSE
+    ~packing:btn_cancel#set_image () in
+  let btn_ok = GButton.button
+    ~label:"Apply"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`APPLY
+    ~packing:btn_ok#set_image () in
+  let _ = treshold#adjustment#set_value 3. in
+  let _ = nb_color#adjustment#set_value 8. in 
+  let _ = range#adjustment#set_value 20. in ();
+  ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+  btn_ok#connect#clicked
+    ~callback:(fun _ ->
+      let treshold_value = int_of_float (treshold#adjustment#value) in
+      let nb_color_value = int_of_float (nb_color#adjustment#value) in
+      let range_value = int_of_float (range#adjustment#value) in
+      let dst = unnoise src treshold_value in
+      let color_list = n_max (reduct dst treshold_value) treshold_value nb_color_value range_value in
+      save_tmp (replace_near dst treshold_value color_list);
+      temp := Sdlloader.load_image "temp.bmp";
+      image_box#set_file "temp.bmp";
+      window1#destroy ())
+
 let settings_gaussian src =
   let window1 = GWindow.window
     ~title:"Gaussian blur settings"
@@ -470,12 +836,14 @@ let settings_gaussian src =
   let _ = GMisc.image
     ~stock:`APPLY
     ~packing:btn_ok#set_image () in
-  let sigma_value = sigma_coef#adjustment#value in
-  let step_value = step#adjustment#value in
+  let _ = sigma_coef#adjustment#set_value 1. in
+  let _ = step#adjustment#set_value 2. in ();
   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
   btn_ok#connect#clicked
-    ~callback:(fun _ -> let dst = Sdlloader.load_image "temp.bmp" in
-			save_as (apply_gaussian_mask src dst) "temp.bmp";
+    ~callback:(fun _ -> let sigma_value = sigma_coef#adjustment#value in
+			let step_value = int_of_float (step#adjustment#value) in
+			save_tmp (apply_gaussian_mask src step_value sigma_value);
+			temp := Sdlloader.load_image "temp.bmp";
 			image_box#set_file "temp.bmp";
 			window1#destroy ())
 
@@ -534,18 +902,38 @@ let settings_canny src =
   let _ = GMisc.image
     ~stock:`APPLY
     ~packing:btn_ok#set_image () in
-  let low_treshold = lowtreshold#adjustment#value in
-  let high_treshold = hightreshold#adjustment#value in
+  ignore(lowtreshold#adjustment#set_value 20.);
+  ignore(hightreshold#adjustment#set_value 45.);
   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
   btn_ok#connect#clicked
-    ~callback:(fun _ -> let dst = Sdlloader.load_image "temp.bmp" in
-			save_as (apply_sobel_mask src dst) "canny.bmp";
+    ~callback:(fun _ ->	let low_treshold = lowtreshold#adjustment#value in
+			let high_treshold = hightreshold#adjustment#value in
+			save_as (apply_sobel_mask src low_treshold high_treshold) "canny.bmp";
+			let mark = Sdlloader.load_image "temp.bmp" in
+			let w, h, p = Sdlvideo.surface_dims mark in
+			for i = 0 to (w-1) do
+			  Sdlvideo.put_pixel_color mark i 0 Sdlvideo.black;
+			done;
+			for i = 0 to (w-1) do
+			  Sdlvideo.put_pixel_color mark i (h-1) Sdlvideo.black;
+			done;
+			for j = 0 to (h-1) do
+			  Sdlvideo.put_pixel_color mark 0 j Sdlvideo.black;
+			done;
+			for j = 0 to (h-1) do
+			  Sdlvideo.put_pixel_color mark (h-1) j Sdlvideo.black;
+			done;
+			for j = 1 to (h-2) do
+			  for i = 1 to (w-2) do
+			    Sdlvideo.put_pixel_color mark i j Sdlvideo.white;
+			  done
+			done;
+			save_as mark "mark.bmp";
 			image_box#set_file "canny.bmp";
-			window1#destroy (); vbox0#misc#show (); canny_slider#misc#show ());
-  lowtreshold#adjustment#set_value 40.;
-  hightreshold#adjustment#set_value 45.
+			window1#destroy (); hbox_canny#misc#show ();
+			lbl_canny#misc#show (); canny_slider#misc#show ();
+			hbox_canny2#misc#show (); btn_finalize#misc#show ())
     
-
 let generate_cfg () =
   let fichier = open_out "cfg.txt" in
   for i = 0 to (List.length !list_color)-1 do
@@ -560,12 +948,22 @@ let settings_sampling src =
   let window1 = GWindow.window
     ~position:`CENTER
     ~title:"Sampling settings"
-    ~width:250
-    ~height:(30 * nb_colors + 100)
     ~show:true
+    ~width:450
+    ~height:(30 * nb_colors + 100)
     ~resizable:false () in
-  let vbox1 = GPack.vbox
+  let vbox00 = GPack.vbox
     ~packing:window1#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox00#add () in
+  let vbox0 = GPack.vbox
+    ~packing:hbox1#add () in
+  let _ = GPack.vbox
+    ~packing:vbox0#add () in
+  let vbox1 = GPack.vbox
+    ~packing:vbox0#add () in
+  let _ = GPack.vbox
+    ~packing:vbox0#add () in
   let textbox_array = Array.make nb_colors (GEdit.entry ())  in
   for i=0 to (nb_colors - 1) do
     let tb = GEdit.entry
@@ -580,7 +978,7 @@ let settings_sampling src =
   done;
   let bbox1 = GPack.button_box `HORIZONTAL
     ~layout:`SPREAD
-    ~packing:vbox1#add () in
+    ~packing:vbox00#add () in
   let btn_cancel = GButton.button
     ~label:"Cancel"
     ~packing:bbox1#add () in
@@ -593,6 +991,54 @@ let settings_sampling src =
   let _ = GMisc.image
     ~stock:`APPLY
     ~packing:btn_ok#set_image () in
+  let vbox2 = GPack.vbox
+    ~packing:hbox1#add () in
+  let frame_quadtree = GBin.frame
+    ~label:"QuadTree"
+    ~border_width:10
+    ~packing:vbox2#add () in
+  let vbox_fqt = GPack.vbox
+    ~packing:frame_quadtree#add () in
+  let _ = GMisc.label 
+    ~text:"Subdivisions"
+    ~packing:vbox_fqt#add () in
+  let adjust_subdiv = GData.adjustment
+    ~lower:1.
+    ~upper:10.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let subdiv = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust_subdiv
+    ~packing:vbox_fqt#add () in
+  let _ = GPack.hbox
+    ~packing:vbox2#add () in
+  let frame_3dsc = GBin.frame
+    ~label:"3D Screen"
+    ~border_width:10
+    ~packing:vbox2#add () in
+  let vbox_3dsc = GPack.vbox
+    ~packing:frame_3dsc#add () in
+  let _ = GMisc.label 
+    ~text:"FPS"
+    ~packing:vbox_3dsc#add () in
+  let adjust_fps = GData.adjustment
+    ~lower:1.
+    ~upper:30.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let fps = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust_fps
+    ~packing:vbox_3dsc#add () in
+  let shadowmap = GButton.check_button
+    ~label:"Shadow map"
+    ~active:true
+    ~packing:vbox_3dsc#add () in
+   let fullscreen = GButton.check_button
+    ~label:"Fullscreen"
+    ~active:true
+    ~packing:vbox_3dsc#add () in
   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
   btn_ok#connect#clicked
     ~callback:(fun _ ->
@@ -604,7 +1050,7 @@ let settings_sampling src =
       generate_cfg ();
       let (w, h, _) = Sdlvideo.surface_dims src in
       generate_obj w h !step src;
-      E3d.glscreen ())
+      E3D.main "test.obj" "temp.bmp" 30 )
 
 let settings_grid src =
   let window1 = GWindow.window
@@ -655,20 +1101,33 @@ let on_reset src =
   save_as src "temp.bmp";
   image_box#set_file "temp.bmp";
   canny_slider#misc#hide ();
-  vbox0#misc#hide ();
+  lbl_canny#misc#hide ();
+  hbox_canny#misc#hide ();
+  hbox_canny2#misc#hide ();
+  btn_finalize#misc#hide ();
+  ()
+
+let on_fill src x y =
+  let dst = Sdlloader.load_image "temp.bmp" in
+  let canny = Sdlloader.load_image "canny.bmp" in
+  let cv = int_of_float canny_slider#adjustment#value in
+  save_as (fill canny dst x y (cv,cv,cv)) "temp.bmp";
+  image_box#set_file "temp.bmp";
   ()
 
 let on_border src =
-  let dst = Sdlloader.load_image "temp.bmp" in
-    save_as (print_border src dst) "temp.bmp";
-    image_box#set_file "temp.bmp";
-    ()
+  save_as (print_border src) "border_tmp.bmp";
+  image_box#set_file "border_tmp.bmp";
+  ()
       
 let on_grid src =
   let _ = settings_grid src in ()
 
 let on_relief src =
   let _ = settings_sampling src in ()
+
+let on_noise src =
+  let _ = settings_noise src in ()
 
 let on_gaussian src =
   let _ = settings_gaussian src in ()
@@ -679,24 +1138,49 @@ let on_canny src =
 (* ================================= MAIN =================================== *)
 let sdl_launch () = 
   let path = open_dialog#filename in
-  let src = Sdlloader.load_image path in
-    image_box#set_file path;
-    save_as src "temp.bmp";
-    ignore(btn_reset#connect#clicked
-	     ~callback:(fun _ -> on_reset src));
-    ignore(btn_border#connect#clicked
-	     ~callback:(fun _ -> on_border src));
-    ignore(btn_grid#connect#clicked
-	     ~callback:(fun _ -> on_grid src)); 
-    ignore(btn_save#connect#clicked
-	     ~callback:(fun _ -> save "resultat.bmp"));
-    ignore(btn_3d#connect#clicked
-	     ~callback:(fun _ -> on_relief src));
-    ignore(btn_gaussian#connect#clicked
-	     ~callback:(fun _ -> on_gaussian src));
-    ignore(btn_canny#connect#clicked
-	     ~callback:(fun _ -> on_canny src));
-    ()
+  let (w, h, _) = Sdlvideo.surface_dims (Sdlloader.load_image path) in
+  src := Sdlloader.load_image path;
+  image_box#set_ypad 0;
+  image_box#set_file path;
+  save_tmp !src;
+  temp := Sdlloader.load_image "temp.bmp";
+  ignore(btn_border#connect#clicked
+	     ~callback:(fun _ -> on_border (Sdlloader.load_image "temp.bmp")));
+  image_x := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
+    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.width - w)/2;
+  image_y := (GtkBase.Widget.allocation image_box#as_widget).Gtk.y +
+    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
+  main_window#event#add [`BUTTON_PRESS];
+  ignore(main_window#event#connect#button_press (
+    fun t ->
+      let x = truncate (GdkEvent.Button.x t)
+      and y = truncate (GdkEvent.Button.y t) in
+      if x >= !image_x && y >= !image_y then
+	on_fill src (x - !image_x) (y - !image_y);
+      false;
+    ));
+  ignore(btn_finalize#connect#clicked
+    ~callback:(fun _ -> save_tmp (find_no_mark (Sdlloader.load_image "mark.bmp"));
+      image_box#set_file "temp.bmp"; temp := Sdlloader.load_image "temp.bmp" ));
+  if (not(!firstime)) then
+    begin
+      ignore(btn_reset#connect#clicked
+	       ~callback:(fun _ -> on_reset !src));
+      ignore(btn_grid#connect#clicked
+	       ~callback:(fun _ -> on_grid !src)); 
+      ignore(btn_save#connect#clicked
+	       ~callback:(fun _ -> save "resultat.bmp"));
+      ignore(btn_3d#connect#clicked
+	       ~callback:(fun _ -> on_relief !temp));
+      ignore(btn_gaussian#connect#clicked
+	       ~callback:(fun _ -> on_gaussian !temp));
+      ignore(btn_canny#connect#clicked
+	       ~callback:(fun _ -> on_canny !temp));
+      ignore(btn_noise#connect#clicked
+	       ~callback:(fun _ -> on_noise !temp));
+      firstime := true
+    end;
+  ()
       
 (* Main *)
 
@@ -717,6 +1201,8 @@ let _ =
 Try `./automap --help' for more information."
   else
     begin
+      image_box#set_file "logo.png";
+      image_box#set_ypad 180;
       ignore(main_window#connect#destroy
 	       ~callback:GMain.quit);
       ignore(btn_quit#connect#clicked ~callback:GMain.quit);
@@ -731,5 +1217,3 @@ Try `./automap --help' for more information."
       main_window#show ();
       GMain.main ()
     end
-      
-      
