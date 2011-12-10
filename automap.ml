@@ -472,6 +472,7 @@ let find_no_mark mark =
 	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif i !a);
 	  c := div_color !c 4;
 	  Sdlvideo.put_pixel_color mark i j !c;
+	  c := Sdlvideo.black;
 	end
     done
   done;
