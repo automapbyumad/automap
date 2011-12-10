@@ -10,7 +10,9 @@ let image_x = ref max_int and image_y = ref max_int;;
 let firstime = ref false
 let temp = ref (Obj.magic 0)
 let src = ref (Obj.magic 0)
-
+let refdiv_value = ref 5
+let fps = ref 30
+let can_paint = ref false
 (*------------------------ LABLGTK GRAPHIC INTERFACE -------------------------*)
 
 (* Main window *)
@@ -18,7 +20,7 @@ let main_window = GWindow.window
   ~resizable:true
   ~title:"AutoMap"
   ~position:`CENTER
-  ~width:1024
+  ~width:1100
   ~height:675 ()
 
 (* Vbox1 -contains- bbox1 & hbox0 *)
@@ -37,7 +39,7 @@ let toolbar = GButton.toolbar
   ~style:`BOTH
   ~tooltips:true
   ~height:60
-  ~width:1024
+  ~width:1100
   ~packing:(bbox1#pack ~expand:true) ()
 
 let btn_open = GButton.tool_button
@@ -91,14 +93,20 @@ let btn_canny = GButton.tool_button
   ~expand:true
   ~packing:toolbar#insert ()
 
-let btn_grid = GButton.tool_button
-  ~label:"Grid"
-  ~stock:`JUSTIFY_FILL
+let btn_3d = GButton.tool_button
+  ~label:"SimpleQuad"
+  ~stock:`CONVERT
   ~expand:true
   ~packing:toolbar#insert ()
 
-let btn_3d = GButton.tool_button
-  ~label:"Relief"
+let btn_quadtree = GButton.tool_button
+  ~label:"QuadTree"
+  ~stock:`CONVERT
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_relief = GButton.tool_button
+  ~label:"3D"
   ~stock:`CONVERT
   ~expand:true
   ~packing:toolbar#insert ()
@@ -445,7 +453,7 @@ let find_no_mark mark =
   let no_modif = Sdlloader.load_image "mark.bmp" in
   let w, h, p = Sdlvideo.surface_dims mark in
   let c = ref Sdlvideo.black in
-  let a = ref 0 in
+  let a = ref 0 and b = ref 0 and nb = ref 0 and nb_max = ref 0 in
   for j = 0 to (h-1) do
     for i = 0 to (w-1) do
       if Sdlvideo.get_pixel_color no_modif i j = Sdlvideo.white then
@@ -453,26 +461,20 @@ let find_no_mark mark =
 	  a := i;
 	  while Sdlvideo.get_pixel_color no_modif !a j = Sdlvideo.white do
 	    a := !a + 1;
+	    nb := !nb + 1;
 	  done;
-	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif !a j);
-	  a := i;
-	  while Sdlvideo.get_pixel_color no_modif !a j = Sdlvideo.white do
-	    a := !a - 1;
+	  nb_max := !nb;
+	  nb := 0;
+	  b := i;
+	  while Sdlvideo.get_pixel_color no_modif !b j = Sdlvideo.white do
+	    b := !b - 1;
+	    nb := !nb + 1;
 	  done;
-	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif !a j);
-	  a := j;
-	  while Sdlvideo.get_pixel_color no_modif i !a = Sdlvideo.white do
-	    a := !a + 1;
-	  done;
-	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif i !a);
-	  a := j;
-	  while Sdlvideo.get_pixel_color no_modif i !a = Sdlvideo.white do
-	    a := !a - 1;
-	  done;
-	  c := somme_color !c (Sdlvideo.get_pixel_color no_modif i !a);
-	  c := div_color !c 4;
+	  if !nb_max >= !nb then
+	    c := Sdlvideo.get_pixel_color no_modif !a j
+	  else
+	    c := Sdlvideo.get_pixel_color no_modif !b j;
 	  Sdlvideo.put_pixel_color mark i j !c;
-	  c := Sdlvideo.black;
 	end
     done
   done;
@@ -631,6 +633,53 @@ let replace_near img step list =
       end
     done
   done;
+  dst
+
+(* 2D Quad Tree *)
+let vline src dst xs ys ye black=
+  for y=ys to ye do
+    if (black) then
+      Sdlvideo.put_pixel_color dst xs y (Sdlvideo.black)
+    else
+      Sdlvideo.put_pixel_color dst xs y (Sdlvideo.get_pixel_color src xs y)
+  done
+let hline src dst xs ys xe black =
+  for x=xs to xe do
+    if (black) then
+      Sdlvideo.put_pixel_color dst x ys (Sdlvideo.black)
+    else
+      Sdlvideo.put_pixel_color dst x ys (Sdlvideo.get_pixel_color src x ys)
+  done
+
+let is_same_color img (xs, ys, xe, ye) =
+  let tbl = Hashtbl.create ((xe-xs)*(xe-xs)) in
+  for y=ys to ye do
+    for x=xs to xe do
+      let color = Sdlvideo.get_pixel_color img x y in
+      if ( not(Hashtbl.mem tbl color) ) then
+	Hashtbl.add tbl color 0
+    done
+  done;
+  Hashtbl.length tbl == 1
+    
+      
+let rec quadtree img s (x, y, xe, ye) subdiv dst invert =
+  if not(subdiv = 0) && not(is_same_color img (x, y, xe, ye)) then
+    begin
+      let size = int_of_float ((float_of_int s) /. 2.) in
+      ignore(quadtree img size (x, y, (x+size), (y+size)) (subdiv-1) dst invert);
+      ignore(quadtree img size ((x+size), y, (xe), (y+size)) (subdiv-1) dst invert);
+      ignore(quadtree img size (x, (y+size), (x+size), (ye)) (subdiv-1) dst invert);
+      ignore(quadtree img size ((x+size), (y+size), (xe), (ye)) (subdiv-1) dst invert);
+      
+      let black = not(invert) in
+      vline img dst x y ye black;
+      vline img dst (x+size) y ye black;
+      vline img dst xe y ye black;
+      hline img dst x y xe black;
+      hline img dst x (y+size) xe black;
+      hline img dst x ye xe black;
+    end;
   dst
     
 (* Misc Functions *)
@@ -930,7 +979,7 @@ let settings_canny src =
 			  done
 			done;
 			save_as mark "mark.bmp";
-			image_box#set_file "canny.bmp";
+			image_box#set_file "canny.bmp"; can_paint := true;
 			window1#destroy (); hbox_canny#misc#show ();
 			lbl_canny#misc#show (); canny_slider#misc#show ();
 			hbox_canny2#misc#show (); btn_finalize#misc#show ())
@@ -944,39 +993,18 @@ let generate_cfg () =
   close_out fichier
 
 
-let settings_sampling src = 
-  let nb_colors = List.length !list_color in
+let settings_quadtree () =
   let window1 = GWindow.window
     ~position:`CENTER
-    ~title:"Sampling settings"
+    ~title:"QuadTree settings"
     ~show:true
     ~width:450
-    ~height:(30 * nb_colors + 100)
+    ~height:(500)
     ~resizable:false () in
   let vbox00 = GPack.vbox
     ~packing:window1#add () in
   let hbox1 = GPack.hbox
     ~packing:vbox00#add () in
-  let vbox0 = GPack.vbox
-    ~packing:hbox1#add () in
-  let _ = GPack.vbox
-    ~packing:vbox0#add () in
-  let vbox1 = GPack.vbox
-    ~packing:vbox0#add () in
-  let _ = GPack.vbox
-    ~packing:vbox0#add () in
-  let textbox_array = Array.make nb_colors (GEdit.entry ())  in
-  for i=0 to (nb_colors - 1) do
-    let tb = GEdit.entry
-      ~packing:vbox1#add () in
-    let (r, g, b) = List.nth !list_color i in
-    let color = Printf.sprintf "#%02x%02x%02x" r g b in
-    tb#misc#modify_base [`NORMAL, `NAME color];
-    textbox_array.(i) <- tb;
-  done;
-  for i=0 to (nb_colors - 1) do
-    textbox_array.(i)#set_text (string_of_int !list_height.(i))
-  done;
   let bbox1 = GPack.button_box `HORIZONTAL
     ~layout:`SPREAD
     ~packing:vbox00#add () in
@@ -1005,19 +1033,55 @@ let settings_sampling src =
     ~packing:vbox_fqt#add () in
   let adjust_subdiv = GData.adjustment
     ~lower:1.
-    ~upper:10.
+    ~upper:15.
     ~step_incr:1.
     ~page_size:0. () in
   let subdiv = GRange.scale `HORIZONTAL
     ~digits:0
     ~adjustment:adjust_subdiv
     ~packing:vbox_fqt#add () in
-  let _ = GPack.hbox
-    ~packing:vbox2#add () in
+  let invert = GButton.check_button
+    ~label:"Invert colors"
+    ~active:false
+    ~packing:vbox_fqt#add () in
+   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+   subdiv#adjustment#set_value 6.;
+   invert#set_active false;
+   btn_ok#connect#clicked
+     ~callback:(fun _ ->
+       let invert_bool = invert#active in
+       refdiv_value := (int_of_float subdiv#adjustment#value);
+       let src = Sdlloader.load_image "temp.bmp" in
+       let dst = Sdlloader.load_image "temp.bmp" in
+       let (w, h, _) = Sdlvideo.surface_dims dst in
+       if (invert_bool) then
+	 for y=0 to (h-1) do
+	   for x=0 to (w-1) do
+	     Sdlvideo.put_pixel_color dst x y Sdlvideo.black
+	   done
+	 done;
+       save_as (quadtree src w (0, 0, (w-1), (w-1)) !refdiv_value dst invert_bool)
+"temp_qt.bmp";
+       image_box#set_file "temp_qt.bmp";
+       window1#destroy ();
+       generate_cfg ();
+      QuadTree.quadTree "test.obj" "temp.bmp" !refdiv_value 0)
+       (*E3D.main "test.obj" "temp.bmp" 30*) 
+
+let settings_3d () =
+  let window1 = GWindow.window
+    ~position:`CENTER
+    ~title:"QuadTree settings"
+    ~show:true
+    ~width:450
+    ~height:(500)
+    ~resizable:false () in
+  let vbox00 = GPack.vbox
+    ~packing:window1#add () in
   let frame_3dsc = GBin.frame
     ~label:"3D Screen"
     ~border_width:10
-    ~packing:vbox2#add () in
+    ~packing:vbox00#add () in
   let vbox_3dsc = GPack.vbox
     ~packing:frame_3dsc#add () in
   let _ = GMisc.label 
@@ -1028,7 +1092,7 @@ let settings_sampling src =
     ~upper:30.
     ~step_incr:1.
     ~page_size:0. () in
-  let fps = GRange.scale `HORIZONTAL
+  let fps_slide = GRange.scale `HORIZONTAL
     ~digits:0
     ~adjustment:adjust_fps
     ~packing:vbox_3dsc#add () in
@@ -1036,46 +1100,17 @@ let settings_sampling src =
     ~label:"Shadow map"
     ~active:true
     ~packing:vbox_3dsc#add () in
-   let fullscreen = GButton.check_button
+  let fullscreen = GButton.check_button
     ~label:"Fullscreen"
     ~active:true
     ~packing:vbox_3dsc#add () in
-  ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
-  btn_ok#connect#clicked
-    ~callback:(fun _ ->
-      list_height := Array.make nb_colors 0;
-      for i=0 to (nb_colors - 1) do
-	!list_height.(i) <- (recup textbox_array.(i));
-      done;
-      window1#destroy ();
-      generate_cfg ();
-      let (w, h, _) = Sdlvideo.surface_dims src in
-      generate_obj w h !step src;
-      E3D.main "test.obj" "temp.bmp" 30 )
-
-let settings_grid src =
-  let window1 = GWindow.window
-    ~position:`CENTER
-    ~title:"Grid settings"
-    ~width:320
-    ~height:120
-    ~show:true
-    ~resizable:false () in
-  let vbox1 = GPack.vbox
-    ~packing:window1#add () in
-  let hbox1 = GPack.hbox
-    ~packing:vbox1#add () in
-  let _ = GMisc.label
-    ~text:"Grid Step "
-    ~packing:hbox1#add () in
-  let step_box = GEdit.entry
-    ~packing:hbox1#add () in
-  let _ = GMisc.label
-    ~text:" px"
-    ~packing:hbox1#add () in
+  let introd = GButton.check_button
+    ~label:"Intro Animation"
+    ~active:true
+    ~packing:vbox_3dsc#add () in
   let bbox1 = GPack.button_box `HORIZONTAL
     ~layout:`SPREAD
-    ~packing:vbox1#add () in
+    ~packing:vbox00#add () in
   let btn_cancel = GButton.button
     ~label:"Cancel"
     ~packing:bbox1#add () in
@@ -1089,12 +1124,91 @@ let settings_grid src =
     ~stock:`APPLY
     ~packing:btn_ok#set_image () in
   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
-  btn_ok#connect#clicked
-    ~callback:(fun _ -> recup_int step_box;
-	       let dst = Sdlloader.load_image "temp.bmp" in
-	       save_as (print_grid src dst (!step)) "temp_grid.bmp";
-	       image_box#set_file "temp_grid.bmp";
-	       window1#destroy ())
+   fps_slide#adjustment#set_value 30.;
+   btn_ok#connect#clicked
+     ~callback:(fun _ ->
+       let fps_val = int_of_float fps_slide#adjustment#value in
+       let shadowmap_bool = shadowmap#active in
+       let fullscreen_bool = fullscreen#active in
+       let intro_bool = introd#active in
+       E3D.main "test.obj" "temp.bmp" fps_val shadowmap_bool fullscreen_bool intro_bool)
+       
+let settings_sampling src = 
+  let nb_colors = List.length !list_color in
+  let window1 = GWindow.window
+    ~position:`CENTER
+    ~title:"Sampling settings"
+    ~show:true
+    ~width:450
+    ~height:(30 * nb_colors + 100)
+    ~resizable:false () in
+  let vbox00 = GPack.vbox
+    ~packing:window1#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox00#add () in
+  let _ = GPack.vbox
+    ~packing:hbox1#add () in
+  let vbox0 = GPack.vbox
+    ~packing:hbox1#add () in
+  let _ = GPack.vbox
+    ~packing:hbox1#add () in
+  let vbox1 = GPack.vbox
+    ~packing:vbox0#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~text:"Grid Step "
+    ~packing:hbox1#add () in
+  let step_box = GEdit.entry
+    ~packing:hbox1#add () in
+  let _ = GMisc.label
+    ~text:" px"
+    ~packing:hbox1#add () in
+  let textbox_array = Array.make nb_colors (GEdit.entry ())  in
+  for i=0 to (nb_colors - 1) do
+    let tb = GEdit.entry
+      ~packing:vbox1#add () in
+    let (r, g, b) = List.nth !list_color i in
+    let color = Printf.sprintf "#%02x%02x%02x" r g b in
+    tb#misc#modify_base [`NORMAL, `NAME color];
+    textbox_array.(i) <- tb;
+  done;
+  for i=0 to (nb_colors - 1) do
+    textbox_array.(i)#set_text (string_of_int !list_height.(i))
+  done;
+  let bbox1 = GPack.button_box `HORIZONTAL
+    ~layout:`SPREAD
+    ~packing:vbox00#add () in
+  let btn_cancel = GButton.button
+    ~label:"Cancel"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`CLOSE
+    ~packing:btn_cancel#set_image () in
+  let btn_ok = GButton.button
+    ~label:"Apply"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`APPLY
+    ~packing:btn_ok#set_image () in
+  step_box#set_text "20";
+   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+   btn_ok#connect#clicked
+     ~callback:(fun _ ->
+       let (w, h, _) = Sdlvideo.surface_dims src in
+       recup_int step_box;
+       let dst = Sdlloader.load_image "temp.bmp" in
+       save_as (print_grid src dst (!step)) "temp_grid.bmp";
+       image_box#set_file "temp_grid.bmp";
+       if (nb_colors > 0) then
+       begin
+	 list_height := Array.make nb_colors 0;
+	 for i=0 to (nb_colors - 1) do
+	   !list_height.(i) <- (recup textbox_array.(i));
+	 done;
+	 generate_obj w h !step src;
+       end;
+       window1#destroy ())
 
 (* Button functions *)
 let on_reset src =
@@ -1106,6 +1220,7 @@ let on_reset src =
   hbox_canny#misc#hide ();
   hbox_canny2#misc#hide ();
   btn_finalize#misc#hide ();
+  can_paint := false;
   ()
 
 let on_fill src x y =
@@ -1120,10 +1235,7 @@ let on_border src =
   save_as (print_border src) "border_tmp.bmp";
   image_box#set_file "border_tmp.bmp";
   ()
-      
-let on_grid src =
-  let _ = settings_grid src in ()
-
+     
 let on_relief src =
   let _ = settings_sampling src in ()
 
@@ -1136,6 +1248,11 @@ let on_gaussian src =
 let on_canny src =
   let _ = settings_canny src in ()
 
+let on_quadtree () =
+  let _ = settings_quadtree () in ()
+
+let on_3D () =
+  let _ = settings_3d () in ()
 (* ================================= MAIN =================================== *)
 let sdl_launch () = 
   let path = open_dialog#filename in
@@ -1153,22 +1270,26 @@ let sdl_launch () =
     ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
   main_window#event#add [`BUTTON_PRESS];
   ignore(main_window#event#connect#button_press (
-    fun t ->
-      let x = truncate (GdkEvent.Button.x t)
-      and y = truncate (GdkEvent.Button.y t) in
-      if x >= !image_x && y >= !image_y then
-	on_fill src (x - !image_x) (y - !image_y);
-      false;
+    fun t -> if (!can_paint) then
+	begin
+	  let x = truncate (GdkEvent.Button.x t)
+	  and y = truncate (GdkEvent.Button.y t) in
+	  if x >= !image_x && y >= !image_y then
+	    on_fill src (x - !image_x) (y - !image_y);
+	  false
+	end
+      else 
+	false
     ));
   ignore(btn_finalize#connect#clicked
     ~callback:(fun _ -> save_tmp (find_no_mark (Sdlloader.load_image "mark.bmp"));
       image_box#set_file "temp.bmp"; temp := Sdlloader.load_image "temp.bmp" ));
   if (not(!firstime)) then
     begin
+      ignore(btn_relief#connect#clicked ~callback:(fun _ -> on_3D ()));
+      ignore(btn_quadtree#connect#clicked ~callback:(fun _ -> on_quadtree ()));
       ignore(btn_reset#connect#clicked
 	       ~callback:(fun _ -> on_reset !src));
-      ignore(btn_grid#connect#clicked
-	       ~callback:(fun _ -> on_grid !src)); 
       ignore(btn_save#connect#clicked
 	       ~callback:(fun _ -> save "resultat.bmp"));
       ignore(btn_3d#connect#clicked

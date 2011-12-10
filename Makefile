@@ -11,4 +11,4 @@ $(RESULT): $(SOURCES)
 	@echo "Done !"
 
 clean:
-	rm -f ${SOURCES:ml=cm?} *.o *~ automap temp.bmp border_tmp.bmp temp_grid.bmp canny.bmp mark.bmp cfg.txt test.obj resultat.bmp \#*\#
+	rm -f ${SOURCES:ml=cm?} *.o *~ automap temp.bmp border_tmp.bmp temp_grid.bmp canny.bmp mark.bmp cfg.txt test.obj resultat.bmp temp_qt.bmp \#*\#

@@ -113,8 +113,10 @@ let quadTree outName picName dims range =
     Printf.printf "time spent : %f sec.\n" (Unix.gettimeofday() -. startTime);
     close_out out
 
-(*let _ =
+(*
+let _ =
   if Array.length Sys.argv >= 4 then
     quadTree Sys.argv.(1) Sys.argv.(2) (int_of_string Sys.argv.(3)) (int_of_string Sys.argv.(4))
   else
-    quadTree "test.obj" "/home/levak/CarteGenerator/carte2.jpg" 8 0*)
+    quadTree "test.obj" "/home/levak/CarteGenerator/carte2.jpg" 8 0
+*)
