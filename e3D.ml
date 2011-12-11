@@ -154,21 +154,20 @@ class obj3D (nv,nf) = object (self)
   val vboTexture = VBO.glGenBuffer ()
   val vboDetailMap = VBO.glGenBuffer ()
   val vboNormals = VBO.glGenBuffer ()
-  val mutable vertexArray = 
-    Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*3)
-  val mutable textureArray = 
-    Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*2)
-  val mutable detailMapArray = 
-    Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*2)
-  val mutable faceArray =  
-    Bigarray.Array1.create Bigarray.int32 Bigarray.c_layout (nf*4)
-  val mutable faceNormalArray = 
-    Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nf*3)
-  val mutable vertexNormalArray = 
-    Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*3)
 
 (* obj#load <obj file> <heightmap used for generation>*)
   method load fname heightmap =
+    let vertexArray = 
+      Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*3)
+    and textureArray = 
+      Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*2)
+    and detailMapArray = 
+      Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*2)
+    and faceArray =  
+      Bigarray.Array1.create Bigarray.int32 Bigarray.c_layout (nf*4)
+    and vertexNormalArray = 
+      Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*3)
+    in
     Printf.printf "vertices : %d\nfaces : %d\n" nb_vertices nb_faces;
     (* Parses vertices found in the input OBJ file 
        AND returns the bounding box *)
@@ -219,6 +218,9 @@ class obj3D (nv,nf) = object (self)
 		  vertexArray.{ 3*(!nv) } <- x;
 		  vertexArray.{3*(!nv)+1} <- y;
 		  vertexArray.{3*(!nv)+2} <- z;
+		  vertexNormalArray.{ 3*(!nv) } <- 0.;
+		  vertexNormalArray.{3*(!nv)+1} <- 0.;
+		  vertexNormalArray.{3*(!nv)+2} <- 0.;
 		  textureArray.{ 2*(!nv) } <- (x-.(!pw)/.2.)/.(!pw);
 		  textureArray.{2*(!nv)+1} <- (z-.(!ph)/.2.)/.(!ph);
 		  detailMapArray.{ 2*(!nv) } <- (x-.(!dw)/.2.)/.(!dw);
@@ -249,7 +251,7 @@ class obj3D (nv,nf) = object (self)
  
       
       print_endline "Launching vertex normal calculation...";
-	  (* Vertex Normal calculation *)
+(* Vertex Normal calculation *)
       for i = 0 to nb_faces-1 do
 	let a = Int32.to_int faceArray.{4*i  } and
 	    b = Int32.to_int faceArray.{4*i+1} and
@@ -268,8 +270,8 @@ class obj3D (nv,nf) = object (self)
 	let fnx = uy*.vz-.uz*.vy and
 	    fny = uz*.vx-.ux*.vz and
 	    fnz = ux*.vy-.uy*.vx in
-	    (* If point is in shadow, it's normal is 0. *)
-	if (not !shadowMap) || not (isPointInShadow x0 y0 z0) then
+(* If point is in shadow, it's normal is 0. *)
+	if not !shadowMap || not (isPointInShadow x0 y0 z0) then
 	  begin
 	    vertexNormalArray.{3*a  } <- vertexNormalArray.{3*a  } +. fnx;
 	    vertexNormalArray.{3*a+1} <- vertexNormalArray.{3*a+1} +. fny;
@@ -397,9 +399,7 @@ class obj3D (nv,nf) = object (self)
       VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4) 
 	VertArray.Elem.GL_UNSIGNED_INT
 
-  method free =
-    VertArray.glDisableClientState VertArray.GL_VERTEX_ARRAY;
-    VertArray.glDisableClientState VertArray.GL_NORMAL_ARRAY;
+  method destroy =
 
     VBO.glUnbindBuffer VBO.GL_ARRAY_BUFFER;
     VBO.glUnbindBuffer VBO.GL_ELEMENT_ARRAY_BUFFER;
@@ -409,12 +409,15 @@ class obj3D (nv,nf) = object (self)
     VBO.glDeleteBuffer vboDetailMap;
     VBO.glDeleteBuffer vboNormals;
     VBO.glDeleteBuffer vboFaces;
+
+    VertArray.glDisableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
+    VertArray.glDisableClientState VertArray.GL_NORMAL_ARRAY;
+    VertArray.glDisableClientState VertArray.GL_VERTEX_ARRAY;
+
+
 (* Call Garbage collector *)
     Gc.full_major();
     print_endline "VBO removed"
-	  
-  method faces = faceArray
-  method vertices = vertexArray
 end
 
 (* Display scene and fill screen *)
@@ -595,18 +598,21 @@ let drawScene screen (model:obj3D) textures =
   GL.glFlush ();
   Sdlgl.swap_buffers ()
 
+let disableEverything () = 
+  GL.glDepthFunc GL.GL_LESS;
+  GL.glDisable GL.GL_CULL_FACE;
+  GL.glDisable GL.GL_DEPTH_TEST;
+  GL.glDisable GL.GL_TEXTURE_2D;
+  GL.glDisable GL.GL_LIGHTING;
+  GL.glDisable GL.GL_LIGHT0;
+  GL.glDisable GL.GL_COLOR_MATERIAL
+    
+
 let toggleDisplayMode (n) =
   let max = 3 in
     displayMode := (if n < 0 && !displayMode = 0 then max - 1 
 		    else (!displayMode + n) mod max);
-    GL.glDepthFunc GL.GL_LESS;
-    GL.glDisable GL.GL_CULL_FACE;
-    GL.glDisable GL.GL_DEPTH_TEST;
-    GL.glDisable GL.GL_TEXTURE_2D;
-    GL.glDisable GL.GL_LIGHTING;
-    GL.glDisable GL.GL_LIGHT0;
-    GL.glDisable GL.GL_COLOR_MATERIAL;
-
+    disableEverything ();
     print_string "Changed display mode to ";
 
     if !textured then
@@ -654,6 +660,7 @@ let animateIntro () =
 	    zoom := !zoom /. 6.;
 	    ortho := false;
 	    intro_yDecal := -40.;
+	    intro_yScale := 0.1;
 	    intro_step := !intro_step + 1
 	  | 1 ->
 	    if !intro_yDecal > -25. then
@@ -674,7 +681,7 @@ let animateIntro () =
 	intro_xpos := wiggle (!intro_wiggle);
 	intro_ypos := wiggle (!intro_wiggle/.2.);
 	intro_zpos := wiggle (!intro_wiggle);
-	intro_yScale := !intro_yScale *. 1.008;
+	intro_yScale := !intro_yScale *. 1.02;
 	intro_yDecal := !intro_yDecal +. 0.5
       end
     else
@@ -785,7 +792,14 @@ let main obj tex fps smap fs introduction =
       ww := float w;
       wh := float h
     end;
-    toggleDisplayMode (if !intro then 4 else 2);
+    if !intro then
+      begin
+	intro_step := 0;
+	displayMode := 2;
+      end
+    else
+      displayMode := 0;
+    toggleDisplayMode (0);
     let textures = loadTextures [|tex;
 			       "textures/DetailTex.jpg";
 			       "textures/DetailGrass.jpg";
@@ -798,18 +812,20 @@ let main obj tex fps smap fs introduction =
 	model#load filename tex;
 	print_endline "3D model successfuly loaded !";
 	mainLoop screen model textures;
-	model#free;
+	model#destroy;
+	disableEverything ();
 	GL.glDeleteTextures textures;
 	Sdl.quit ()
-
-(*let _ = 
+(*
+let _ = 
   if Array.length Sys.argv >= 3 then
     begin
       let obj = Sys.argv.(1) and
 	  tex = Sys.argv.(2) and
 	  fps = if Array.length Sys.argv >= 4 then Sys.argv.(3) else "14" in
-	main obj tex (int_of_string fps)
+      main obj tex (int_of_string fps) true true true
+
     end
   else
     print_endline "USAGE : e3D obj_filename texture_filename [fps]"
-*)
+ *)

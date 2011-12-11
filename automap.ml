@@ -219,7 +219,7 @@ let print_border src =
     done;
   done;
   list_color := list_invert !list_color;
-  list_height := Array.init (List.length !list_color) (fun i -> i*10);
+  list_height := Array.init (List.length !list_color) (fun i -> i*20);
   dst
     
 (* Grid *)
@@ -265,7 +265,16 @@ let indexof list x =
     | e::l -> indexofrec l x acc+1 in
     indexofrec list x 0
 
-let get_height color = !list_height.(indexof !list_color color)
+let get_height color = 
+  if !list_color <> []  then
+    !list_height.(indexof !list_color color)
+  else
+    let (r,g,b) = color in
+    int_of_float
+      (0.3 *. (float r) 
+      +. 0.59 *. (float g) 
+      +. 0.11 *. (float b))
+
 
 let trace_points step w h output_file img =
   let file = open_out output_file in 
@@ -1033,7 +1042,7 @@ let settings_quadtree () =
     ~packing:vbox_fqt#add () in
   let adjust_subdiv = GData.adjustment
     ~lower:1.
-    ~upper:15.
+    ~upper:13.
     ~step_incr:1.
     ~page_size:0. () in
   let subdiv = GRange.scale `HORIZONTAL
@@ -1201,13 +1210,13 @@ let settings_sampling src =
        save_as (print_grid src dst (!step)) "temp_grid.bmp";
        image_box#set_file "temp_grid.bmp";
        if (nb_colors > 0) then
-       begin
-	 list_height := Array.make nb_colors 0;
-	 for i=0 to (nb_colors - 1) do
-	   !list_height.(i) <- (recup textbox_array.(i));
-	 done;
-	 generate_obj w h !step src;
-       end;
+	 begin
+	   list_height := Array.make nb_colors 0;
+	   for i=0 to (nb_colors - 1) do
+	     !list_height.(i) <- (recup textbox_array.(i));
+	   done;
+	 end;
+       generate_obj w h !step src;
        window1#destroy ())
 
 (* Button functions *)
