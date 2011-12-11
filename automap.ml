@@ -6,18 +6,19 @@ let _ = GMain.init ()
 let step = ref 20
 let list_color = ref []
 let list_height = ref (Array.make 0 0)
-let image_x = ref max_int and image_y = ref max_int;;
+let color_areas = ref (Hashtbl.create 83)
+let image_x = ref max_int and image_y = ref max_int
 let firstime = ref false
 let temp = ref (Obj.magic 0)
 let src = ref (Obj.magic 0)
 let refdiv_value = ref 5
-let fps = ref 30
 let can_paint = ref false
 (*------------------------ LABLGTK GRAPHIC INTERFACE -------------------------*)
 
 (* Main window *)
 let main_window = GWindow.window
   ~resizable:true
+  ~icon:(GdkPixbuf.from_file "images/icon.png")
   ~title:"AutoMap"
   ~position:`CENTER
   ~width:1100
@@ -69,27 +70,27 @@ let btn_reset = GButton.tool_button
   ~expand:true
   ~packing:toolbar#insert ()
 
-let btn_border = GButton.tool_button
-  ~label:"Border"
-  ~stock:`REMOVE
-  ~expand:true
-  ~packing:toolbar#insert ()
-
 let btn_noise = GButton.tool_button
   ~label:"Clear Noise"
   ~stock:`CLEAR
   ~expand:true
   ~packing:toolbar#insert ()
 
-let btn_gaussian = GButton.tool_button
-  ~label:"Gaussian"
-  ~stock:`FULLSCREEN
+let btn_border = GButton.tool_button
+  ~label:"Border"
+  ~stock:`REMOVE
   ~expand:true
   ~packing:toolbar#insert ()
 
 let btn_canny = GButton.tool_button
   ~label:"Canny"
   ~stock:`CUT
+  ~expand:true
+  ~packing:toolbar#insert ()
+
+let btn_gaussian = GButton.tool_button
+  ~label:"Gaussian"
+  ~stock:`FULLSCREEN
   ~expand:true
   ~packing:toolbar#insert ()
 
@@ -152,6 +153,12 @@ let canny_adjust = GData.adjustment
   ~upper:254.
   ~step_incr:1.
   ~page_size:0. ()
+
+let coef_adjust = GData.adjustment
+  ~lower:1.
+  ~upper:100.
+  ~step_incr:1.
+  ~page_size:0. ()
  
 let hbox_canny = GPack.hbox
   ~show:false
@@ -166,6 +173,16 @@ let lbl_canny = GMisc.label
 let canny_slider = GRange.scale `HORIZONTAL
   ~digits:0
   ~adjustment:canny_adjust
+  ~show:false
+  ~packing:hbox_canny#add ()
+
+let lbl_coef = GMisc.label
+  ~text:"Coefficent"
+  ~show:false
+  ~packing:hbox_canny#add ()
+let coef_slider = GRange.scale `HORIZONTAL
+  ~digits:0
+  ~adjustment:coef_adjust
   ~show:false
   ~packing:hbox_canny#add ()
 
@@ -367,6 +384,45 @@ let somme_color_f (r1, g1, b1) (r2, g2, b2) =
 let pair_int_of_float (r, g, b) =
   (int_of_float r, int_of_float g, int_of_float b)
 
+(* Misc Functions *)
+
+let save_as src path =
+  Sdlvideo.save_BMP src path
+
+let save_tmp dst =
+  Sdlvideo.save_BMP dst "temp.bmp"
+
+let save path =
+  Sdlvideo.save_BMP (Sdlloader.load_image "temp.bmp") path
+
+let get_string = function
+  | Some x -> x
+  | _ -> raise Not_found
+
+let recup_int input =
+  let text = input#text in
+  try
+    step := int_of_string text;
+  with
+    | _ -> step := 20
+
+let recup_float input =
+  let text = input#text in
+  try
+    float_of_string text;
+  with
+    | _ -> 0.
+
+let recup input =
+  let text = input#text in
+  try
+    int_of_string text;
+  with
+    | _ -> 0
+
+let generate_obj w h pas img =
+  trace_points pas w h "test.obj" img
+
 (* Gaussian blur *)
 let apply_gaussian_mask src step sigma = 
   let nb = 2 * step + 1 in
@@ -421,8 +477,8 @@ let neighbour_white src x y w h =
 	  return := true
     done
   done;
-  !return 
-    
+  !return
+
 let apply_sobel_mask src low_treshold high_treshold =
   let x, y, z = Sdlvideo.surface_dims src in
   let dst = Sdlvideo.create_RGB_surface_format src [] x y in
@@ -488,6 +544,38 @@ let find_no_mark mark =
     done
   done;
   mark
+
+let build_color_areas_table canny src coef =
+  save_as canny "area_buffer.bmp";
+  let area_buffer = Sdlloader.load_image "area_buffer.bmp"
+  and (w, h, _) = Sdlvideo.surface_dims src in  
+  let rec fill_rec x y color =
+    let c = Sdlvideo.get_pixel_color area_buffer x y in
+    Sdlvideo.put_pixel_color area_buffer x y color;
+    for j = -1 to 1 do
+      for i = -1 to 1 do
+	if i <> 0 || j <> 0 then
+	  begin
+	    if x+i > 0 && x+i < w - 1 
+	      && y+j > 0 && y+j < h - 1
+	      && c = Sdlvideo.get_pixel_color area_buffer (x+i) (y+j) then
+	      fill_rec (x+i) (y+j) color;
+	  end;
+      done
+    done
+  in
+  for y = 1 to h-2 do
+    for x = 1 to w-2 do
+      if Sdlvideo.get_pixel_color area_buffer x y <> Sdlvideo.white then
+	begin
+	  fill_rec x y Sdlvideo.white;	  
+	  let (r,g,b) = Sdlvideo.get_pixel_color src x y in
+	  let key = (r/coef, g/coef, b/coef) in
+	  Hashtbl.add !color_areas key (x,y)
+	end;
+    done;
+  done;
+  Sys.remove "area_buffer.bmp"
 
 (* Noise Reduction *)
 
@@ -691,39 +779,6 @@ let rec quadtree img s (x, y, xe, ye) subdiv dst invert =
     end;
   dst
     
-(* Misc Functions *)
-
-let save_as src path =
-  Sdlvideo.save_BMP src path
-
-let save_tmp dst =
-  Sdlvideo.save_BMP dst "temp.bmp"
-
-let save path =
-  Sdlvideo.save_BMP (Sdlloader.load_image "temp.bmp") path
-    
-
-let get_string = function
-  | Some x -> x
-  | _ -> raise Not_found
-
-let recup_int input =
-  let text = input#text in
-  try
-    step := int_of_string text;
-  with
-    | _ -> step := 20
-
-let recup input =
-  let text = input#text in
-  try
-    int_of_string text;
-  with
-    | _ -> 0
-
-let generate_obj w h pas img =
-  trace_points pas w h "test.obj" img
-
 (* Ma fonction fill new *)
 let fill canny dst x y color =
   let mark = Sdlloader.load_image "mark.bmp" in
@@ -747,8 +802,8 @@ let fill canny dst x y color =
     done
   in
   fill_rec x y;
-  save_as mark "mark.bmp";
-  dst
+  save_as mark "mark.bmp"
+(*;  dst*)
 
 (* Height <> Colors textboxes *)
 let triple2string (r,g,b) =
@@ -967,7 +1022,10 @@ let settings_canny src =
   btn_ok#connect#clicked
     ~callback:(fun _ ->	let low_treshold = lowtreshold#adjustment#value in
 			let high_treshold = hightreshold#adjustment#value in
-			save_as (apply_sobel_mask src low_treshold high_treshold) "canny.bmp";
+			let canny = apply_sobel_mask src low_treshold high_treshold in
+			save_as canny "canny.bmp";
+			build_color_areas_table canny src 
+			  (int_of_float coef_slider#adjustment#value);
 			let mark = Sdlloader.load_image "temp.bmp" in
 			let w, h, p = Sdlvideo.surface_dims mark in
 			for i = 0 to (w-1) do
@@ -991,6 +1049,7 @@ let settings_canny src =
 			image_box#set_file "canny.bmp"; can_paint := true;
 			window1#destroy (); hbox_canny#misc#show ();
 			lbl_canny#misc#show (); canny_slider#misc#show ();
+			lbl_coef#misc#show (); coef_slider#misc#show ();
 			hbox_canny2#misc#show (); btn_finalize#misc#show ())
     
 let generate_cfg () =
@@ -1107,16 +1166,43 @@ let settings_3d () =
     ~packing:vbox_3dsc#add () in
   let shadowmap = GButton.check_button
     ~label:"Shadow map"
-    ~active:true
+    ~active:(!E3D.shadowMap)
     ~packing:vbox_3dsc#add () in
   let fullscreen = GButton.check_button
     ~label:"Fullscreen"
-    ~active:true
+    ~active:(!E3D.fullscreen)
     ~packing:vbox_3dsc#add () in
   let introd = GButton.check_button
     ~label:"Intro Animation"
-    ~active:true
+    ~active:(!E3D.intro)
     ~packing:vbox_3dsc#add () in
+  let in3D = GButton.check_button
+    ~label:"Anaglyph 3D (red/cyan) - d"
+    ~active:(!E3D.anaglyph)
+    ~packing:vbox_3dsc#add () in
+  let textured = GButton.check_button
+    ~label:"Enable Textures - t"
+    ~active:(!E3D.textured)
+    ~packing:vbox_3dsc#add () in
+  let ortho = GButton.check_button
+    ~label:"Orthonormal view - e"
+    ~active:(!E3D.ortho)
+    ~packing:vbox_3dsc#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox_3dsc#add () in
+  let _ = GMisc.label
+    ~text:"Y Scale - q/w"
+    ~packing:hbox1#add () in
+  let yScale = GEdit.entry
+    ~packing:hbox1#add () in
+  let hbox2 = GPack.hbox
+    ~packing:vbox_3dsc#add () in
+  let _ = GMisc.label
+    ~text:"Y Height - f/v"
+    ~packing:hbox2#add () in
+  let yDecal = GEdit.entry
+    ~packing:hbox2#add () in
+
   let bbox1 = GPack.button_box `HORIZONTAL
     ~layout:`SPREAD
     ~packing:vbox00#add () in
@@ -1134,13 +1220,20 @@ let settings_3d () =
     ~packing:btn_ok#set_image () in
   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
    fps_slide#adjustment#set_value 30.;
+   yScale#set_text (string_of_float !E3D.yScale);
+   yDecal#set_text (string_of_float !E3D.yDecal);
    btn_ok#connect#clicked
      ~callback:(fun _ ->
        let fps_val = int_of_float fps_slide#adjustment#value in
-       let shadowmap_bool = shadowmap#active in
-       let fullscreen_bool = fullscreen#active in
-       let intro_bool = introd#active in
-       E3D.main "test.obj" "temp.bmp" fps_val shadowmap_bool fullscreen_bool intro_bool)
+       E3D.shadowMap := shadowmap#active;
+       E3D.fullscreen := fullscreen#active;
+       E3D.intro := introd#active;
+       E3D.anaglyph := in3D#active;
+       E3D.textured := textured#active;
+       E3D.ortho := ortho#active;
+       E3D.yScale := recup_float yScale;
+       E3D.yDecal := recup_float yDecal;      
+       E3D.main "test.obj" "temp.bmp" fps_val)
        
 let settings_sampling src = 
   let nb_colors = List.length !list_color in
@@ -1226,6 +1319,8 @@ let on_reset src =
   image_box#set_file "temp.bmp";
   canny_slider#misc#hide ();
   lbl_canny#misc#hide ();
+  coef_slider#misc#hide ();
+  lbl_coef#misc#hide ();
   hbox_canny#misc#hide ();
   hbox_canny2#misc#hide ();
   btn_finalize#misc#hide ();
@@ -1233,10 +1328,16 @@ let on_reset src =
   ()
 
 let on_fill src x y =
-  let dst = Sdlloader.load_image "temp.bmp" in
-  let canny = Sdlloader.load_image "canny.bmp" in
-  let cv = int_of_float canny_slider#adjustment#value in
-  save_as (fill canny dst x y (cv,cv,cv)) "temp.bmp";
+  let dst = Sdlloader.load_image "temp.bmp"
+  and canny = Sdlloader.load_image "canny.bmp"
+  and cv = int_of_float canny_slider#adjustment#value
+  and coef = int_of_float coef_slider#adjustment#value in
+  let (r,g,b) = Sdlvideo.get_pixel_color dst x y in
+  let key = (r/coef, g/coef, b/coef) in
+  List.iter 
+    (fun (x',y') -> fill canny dst x' y' (cv,cv,cv)) 
+    (Hashtbl.find_all !color_areas key);
+  save_as dst "temp.bmp";
   image_box#set_file "temp.bmp";
   ()
 
@@ -1311,7 +1412,7 @@ let sdl_launch () =
 	       ~callback:(fun _ -> on_noise !temp));
       firstime := true
     end;
-  ()
+  on_reset !src
       
 (* Main *)
 
@@ -1332,7 +1433,7 @@ let _ =
 Try `./automap --help' for more information."
   else
     begin
-      image_box#set_file "logo.png";
+      image_box#set_file "images/logo.png";
       image_box#set_ypad 180;
       ignore(main_window#connect#destroy
 	       ~callback:GMain.quit);

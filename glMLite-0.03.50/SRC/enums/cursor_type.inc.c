@@ -1,0 +1,30 @@
+  static const GLenum conv_cursor_type_table[] = {
+    GLUT_CURSOR_RIGHT_ARROW,
+    GLUT_CURSOR_LEFT_ARROW,
+    GLUT_CURSOR_INFO,
+    GLUT_CURSOR_DESTROY,
+    GLUT_CURSOR_HELP,
+    GLUT_CURSOR_CYCLE,
+    GLUT_CURSOR_SPRAY,
+    GLUT_CURSOR_WAIT,
+    GLUT_CURSOR_TEXT,
+    GLUT_CURSOR_CROSSHAIR,
+    GLUT_CURSOR_UP_DOWN,
+    GLUT_CURSOR_LEFT_RIGHT,
+    GLUT_CURSOR_TOP_SIDE,
+    GLUT_CURSOR_BOTTOM_SIDE,
+    GLUT_CURSOR_LEFT_SIDE,
+    GLUT_CURSOR_RIGHT_SIDE,
+    GLUT_CURSOR_TOP_LEFT_CORNER,
+    GLUT_CURSOR_TOP_RIGHT_CORNER,
+    GLUT_CURSOR_BOTTOM_RIGHT_CORNER,
+    GLUT_CURSOR_BOTTOM_LEFT_CORNER,
+    GLUT_CURSOR_FULL_CROSSHAIR,
+    GLUT_CURSOR_NONE,
+    GLUT_CURSOR_INHERIT,
+  };
+  cursor_type = conv_cursor_type_table[Int_val(_cursor_type)];
+#if defined(USE_MY_GL3_CORE_PROFILE)
+  if (cursor_type == 0x000A)
+    caml_failwith("using gl-enum deprecated in core OpenGL 3");
+#endif

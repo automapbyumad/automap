@@ -1,0 +1,11 @@
+type pixel_transfer_f =
+  | GL_RED_SCALE
+  | GL_RED_BIAS
+  | GL_GREEN_SCALE
+  | GL_GREEN_BIAS
+  | GL_BLUE_SCALE
+  | GL_BLUE_BIAS
+  | GL_ALPHA_SCALE
+  | GL_ALPHA_BIAS
+  | GL_DEPTH_SCALE
+  | GL_DEPTH_BIAS

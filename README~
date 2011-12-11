@@ -1,0 +1,115 @@
+#################################
+#	AutoMap - v2.0		#
+#	 (11-12-2011)		#
+#	    by UMAD		#
+#	http://umad.fr.nf	#
+#################################
+
+I)	What is AutoMap ?
+II)	How to Compile
+III)	How to use
+IV)	Other usages
+V)	Credits
+
+I)	What is AutoMap ?
+-------------------------
+
+	AutoMap is a cool 3D map generator and viewer that lets you
+generate 3D landscapes using a 2D picture that look's like a topology
+map. It can be used to other aspects such as generate 3D models for an
+external 3D software.
+
+	AutoMap has been developed by UMAD team (see V-Credits) as
+a second year school project at Epita.
+
+	It uses a modified version of glMLite, lablgtk and ocamlsdl.
+Automap has been realized using OCaml language.
+
+
+II)	How to Compile
+-----------------------
+
+Required packages :
+ - ocaml-native-compilers
+ - libsdl-ocaml-dev
+ - libsdl-ocaml
+ - libmagickcore-dev
+ - libmagickcore3
+ - lablgtk2-ocaml-dev
+ - lablgtk2-ocaml
+
+If you never used glMLite :
+	First go to glMLite-0.03.50 directory
+	 - use "make"
+	 - use "make vbo"
+	 - use "make genimg"
+	 - use "sudo make install"
+	 - use "sudo make install_vbo"
+	 - use "sudo make install_genimg"
+Otherwise :
+	glMLite-0.03.50/SRC/GL.ml:
+		external glClientActiveTexture: texture:texture_i -> unit = "ml_glclientactivetexture" "noalloc"
+		(** {{:http://www.opengl.org/sdk/docs/man/xhtml/glClientActiveTexture.xml}
+	glMLite-0.03.50/SRC/GL.ml.pp:
+		external glClientActiveTexture: texture:texture_i -> unit = "ml_glclientactivetexture" NOALLOC
+		(** {{:http://www.opengl.org/sdk/docs/man/xhtml/glClientActiveTexture.xml}
+	glMLite-0.03.50/SRC/GL.mli:
+		external glClientActiveTexture: texture:texture_i -> unit = "ml_glclientactivetexture" "noalloc"
+		(** {{:http://www.opengl.org/sdk/docs/man/xhtml/glClientActiveTexture.xml}
+	glMLite-0.03.50/SRC/gl.wrap.c:
+		t_val ml_glclientactivetexture( value _texture_i )
+		glClientActiveTexture( texture_i ); ret
+
+
+Then, go to automap root directory and use "make" to generate the bytecode
+Use ./automap to launch AutoMap once compiled
+
+III)	How to use
+-------------------
+
+ - Launch AutoMap using ./automap or by double clicking on 
+   automap icon.
+
+ - Once launched, you'll see a gtk interface showing multiple buttons.
+   Start with the first one : load an image. Select your image and then
+   click "Ok"
+
+ - Your image is shown, you have multiple choices : 
+	-> Clear noise, applies a noise reduction algorithm
+
+	-> Border, lets you detect borders and chose color heights later
+		-> use "Simple Grid" to generate a basic 3D mesh.
+		   You are able to adjust heights of a specific color (only if
+		   you previously clicked on "Border", otherwise you will only
+		   see the grid step entry)
+
+	-> Canny, applies a Sobel mask and lets you click on areas to determines
+	   easly what is the height of a specific color with the 2 sliders at
+	   the bottom of the image.
+		-> Once you entirely filled the image press on the "Finalize" 
+		   button that will fill outlines.
+
+ - There is 2 main mesh generation algorithm : Simple Grid and QuadTree.
+   Chose one and follow instructions.
+
+ - Click on "3D" to launch the OpenGL viewer of the generated mesh
+
+
+IV)	Other usages
+---------------------
+
+	You can use AutoMap only as a 3D mesh generator from a 2D
+picture. Indeed, AutoMap generates a Wavefront file (*.obj) compatible
+with other 3D modelling software such as Blender.
+
+
+V)	Credits
+----------------
+
+AutoMap has been produced by UMAD team
+ * Jérémy ANSELME (Levak)	- anselm_j@epita.fr
+ * Vincent Mirzaian-dehkordi	- mirzai_v@epita.fr
+ * Rémi Waser			- waser_r@epita.fr
+ * Rémi Weng			- weng_r@epita.fr
+
+http://umad.fr.nf

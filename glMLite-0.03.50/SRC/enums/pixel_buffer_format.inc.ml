@@ -1,0 +1,14 @@
+type pixel_buffer_format =
+  | GL_COLOR_INDEX
+  | GL_STENCIL_INDEX
+  | GL_DEPTH_COMPONENT
+  | GL_RED
+  | GL_GREEN
+  | GL_BLUE
+  | GL_ALPHA
+  | GL_RGB
+  | GL_BGR
+  | GL_RGBA
+  | GL_BGRA
+  | GL_LUMINANCE
+  | GL_LUMINANCE_ALPHA

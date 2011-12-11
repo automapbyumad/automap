@@ -35,13 +35,14 @@
 (* Detail Map Size *) let dw = ref 5. and dh = ref 5.
 let displayMode = ref 1
 let animate = ref false
+let fullscreen = ref true
 let intro = ref true
 let intro_step = ref 0
 let intro_wiggle = ref 0.
 let intro_xpos = ref 0. and intro_ypos = ref 0. and intro_zpos = ref 0.
 let intro_yScale = ref 0.1 and intro_yDecal = ref 0.
 let anaglyph = ref false
-let ortho = ref true
+let ortho = ref false
 let textured = ref true
 let shadowMap = ref true
 (*let textures = ref (Array.make 0 (GL.glGenTexture ()))*)
@@ -90,7 +91,7 @@ let rec findObjFile filename =
       filename;
   with Sys_error e -> 
     print_endline e;
-    let newfile = "thegame.obj" in
+    let newfile = "not_found.obj" in
       if filename <> newfile then
 	begin
 	  print_endline "loading default file";
@@ -371,7 +372,7 @@ class obj3D (nv,nf) = object (self)
 	VertArray.glTexCoordPointer0 2 VertArray.Coord.GL_FLOAT 0;
 	GL.glActiveTexture GL.GL_TEXTURE2;
 	VertArray.glEnableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
-	enableTexture textures.(2);
+	enableTexture textures.(1);
 
 	VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4) 
 	  VertArray.Elem.GL_UNSIGNED_INT;
@@ -532,7 +533,7 @@ let drawScene screen (model:obj3D) textures =
  (* SkyBox *)
     let p1 = 253. /. 1024. and p2 = 770. /. 1024. in 
     GL.glEnable GL.GL_TEXTURE_2D;
-    enableTexture textures.(4);
+    enableTexture textures.(3);
     (* Top *)
     GL.glBegin GL.GL_QUADS;
      GL.glTexCoord2 p1 p2; GL.glVertex3 (-.size) size (-.size);
@@ -578,7 +579,7 @@ let drawScene screen (model:obj3D) textures =
     GL.glEnable GL.GL_BLEND;
     GL.glDisable GL.GL_CULL_FACE;
     GL.glBlendFunc GL.Sfactor.GL_ONE GL.Dfactor.GL_ONE;
-    enableTexture textures.(3);
+    enableTexture textures.(2);
 
     GL.glBegin GL.GL_QUADS;
      GL.glTexCoord2 decal 0.; GL.glVertex3 (-.size) 2. (-.size);
@@ -658,7 +659,6 @@ let animateIntro () =
 	    xrot := -1.; yrot := -1.; zrot := 0.;
 	    xpos := 0.; ypos := -30.; zpos := 0.;
 	    zoom := !zoom /. 6.;
-	    ortho := false;
 	    intro_yDecal := -40.;
 	    intro_yScale := 0.1;
 	    intro_step := !intro_step + 1
@@ -775,18 +775,17 @@ let rec mainLoop screen model textures =
   end
 
 (* Setup the screen *)
-let main obj tex fps smap fs introduction =
+let main obj tex fps =
   Sdl.init [`EVERYTHING];
   Sdlwm.set_caption ~title:"AutoMap" ~icon:"";
   internalTimer := Sdltimer.get_ticks ();
   refTimer := 1000 / fps;
-  shadowMap := smap;
-  intro := introduction;
-  let screen = Sdlvideo.set_video_mode 0 0 
-    (if fs then 
-	[`FULLSCREEN; `OPENGL; `DOUBLEBUF]
+  let screen = 
+    (if !fullscreen then 
+	Sdlvideo.set_video_mode 0 0 [`FULLSCREEN; `OPENGL; `DOUBLEBUF]
      else
-	[`OPENGL; `DOUBLEBUF]) in
+	Sdlvideo.set_video_mode 640 400 [`OPENGL; `DOUBLEBUF]) 
+  in
     begin let (w, h, _) = Sdlvideo.surface_dims screen in
       wratio := (float w) /. (float h);
       ww := float w;
@@ -801,10 +800,9 @@ let main obj tex fps smap fs introduction =
       displayMode := 0;
     toggleDisplayMode (0);
     let textures = loadTextures [|tex;
-			       "textures/DetailTex.jpg";
-			       "textures/DetailGrass.jpg";
-			       "textures/water.jpg";
-			       "textures/SkyBox.jpg"|] in
+			       "images/DetailTex.jpg";
+			       "images/water.jpg";
+			       "images/SkyBox.jpg"|] in
     let filename = findObjFile obj in
       print_endline "Trying to load 3D model ...";       
       let model = new obj3D (countVerticesAndFaces (open_in filename)) in
@@ -823,8 +821,7 @@ let _ =
       let obj = Sys.argv.(1) and
 	  tex = Sys.argv.(2) and
 	  fps = if Array.length Sys.argv >= 4 then Sys.argv.(3) else "14" in
-      main obj tex (int_of_string fps) true true true
-
+      main obj tex (int_of_string fps)
     end
   else
     print_endline "USAGE : e3D obj_filename texture_filename [fps]"

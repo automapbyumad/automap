@@ -60,8 +60,8 @@ let quadTree outName picName dims range =
     let p0 = Vector.get i0 vec and
 	p2 = Vector.get i2 vec in
       if dims > 0
-	&& p0.x + 1 < p2.x 
-	&& p2.z + 1 < p0.z
+	&& p2.x - p0.x > 1
+	&& p0.z - p2.z > 1
 	&& (check p0.x p2.x p2.z p0.z) then
 	begin
 	  let x12 = (p2.x - p0.x) / 2 and
@@ -95,10 +95,10 @@ let quadTree outName picName dims range =
 	  Printf.fprintf out "f %d %d %d %d\n" (i0+1) (i1+1) (i2+1) (i3+1)
 	end
   in
-    ignore(addPoint 1     1    );
-    ignore(addPoint 1     (h-2));
-    ignore(addPoint (w-2) (h-2));
-    ignore(addPoint (w-2) 1    );
+    ignore(addPoint 0     0    );
+    ignore(addPoint 0     (h-1));
+    ignore(addPoint (w-1) (h-1));
+    ignore(addPoint (w-1) 0    );
     buildTree 1 2 3 0 dims;
  
     Vector.iter

@@ -1,0 +1,17 @@
+type op_code =
+  | GL_CLEAR
+  | GL_SET
+  | GL_COPY
+  | GL_COPY_INVERTED
+  | GL_NOOP
+  | GL_INVERT
+  | GL_AND
+  | GL_NAND
+  | GL_OR
+  | GL_NOR
+  | GL_XOR
+  | GL_EQUIV
+  | GL_AND_REVERSE
+  | GL_AND_INVERTED
+  | GL_OR_REVERSE
+  | GL_OR_INVERTED

@@ -1,0 +1,7 @@
+type clip_plane =
+  | GL_CLIP_PLANE0
+  | GL_CLIP_PLANE1
+  | GL_CLIP_PLANE2
+  | GL_CLIP_PLANE3
+  | GL_CLIP_PLANE4
+  | GL_CLIP_PLANE5

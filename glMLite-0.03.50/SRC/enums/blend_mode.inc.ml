@@ -1,0 +1,6 @@
+type blend_mode =
+  | GL_FUNC_ADD
+  | GL_FUNC_SUBTRACT
+  | GL_FUNC_REVERSE_SUBTRACT
+  | GL_MIN
+  | GL_MAX

@@ -1,0 +1,6 @@
+type get_string =
+  | GL_VENDOR
+  | GL_RENDERER
+  | GL_VERSION
+  | GL_SHADING_LANGUAGE_VERSION
+  | GL_EXTENSIONS

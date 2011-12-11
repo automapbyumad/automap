@@ -1,0 +1,5 @@
+type pixel_packing_b =
+  | GL_PACK_SWAP_BYTES
+  | GL_PACK_LSB_FIRST
+  | GL_UNPACK_SWAP_BYTES
+  | GL_UNPACK_LSB_FIRST

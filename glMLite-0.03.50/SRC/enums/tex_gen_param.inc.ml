@@ -1,0 +1,6 @@
+type tex_gen_param =
+  | GL_OBJECT_LINEAR
+  | GL_EYE_LINEAR
+  | GL_SPHERE_MAP
+  | GL_NORMAL_MAP
+  | GL_REFLECTION_MAP
