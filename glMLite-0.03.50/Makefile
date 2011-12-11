@@ -27,9 +27,6 @@ include ./Makefile.depend
 all:
 	(cd $(SRC); $(MAKE))
 
-test:
-	(cd $(TEST); $(MAKE) test)
-
 install:
 	(cd $(SRC); $(MAKE) install)
 
@@ -161,15 +158,9 @@ install_doc:
 
 clean:
 	(cd $(SRC); $(MAKE) clean)
-	(cd $(TEST); $(MAKE) clean)
-	(cd $(TEST3); $(MAKE) clean)
-	(cd $(LABLGL); $(MAKE) clean)
-	(cd RedBook-Samples; $(MAKE) clean)
-	(cd gle-examples; $(MAKE) clean)
 
 clean_all clean-all cleanall: clean  clean-pack
 	(cd $(SRC); $(MAKE) clean-all)
-	(cd $(TEST); $(MAKE) cleaner)
 	rm -f *~
 
 .PHONY: all install doc clean cleanall clean_all
@@ -265,84 +256,6 @@ SRC_FILES=\
 	$(SRC)/gl3_deprecations.h   \
 	#EOL
 
-TEST_FILES=\
-	$(TEST)/README.txt          \
-	$(TEST)/Makefile            \
-	$(TEST)/boot.c              \
-	\
-	$(TEST)/loading_textures.ml \
-	$(TEST)/loading_textures.sh \
-	$(TEST)/loading_textures.find \
-	$(TEST)/wall-rgb.jpg        \
-	$(TEST)/wall-gray.jpg       \
-	$(TEST)/wall-grayalpha.png  \
-	$(TEST)/sketch.svg          \
-	\
-	$(TEST)/timer.ml            \
-	$(TEST)/viewport.ml         \
-	$(TEST)/outlines.ml         \
-	$(TEST)/outline.ml          \
-	$(TEST)/skybox.ml           \
-	\
-	$(TEST)/billboard.ml        \
-	$(TEST)/billboard.sh        \
-	$(TEST)/billboard.find      \
-	$(TEST)/square.jpg          \
-	\
-	$(TEST)/multitexture.ml     \
-	$(TEST)/multitexture.sh     \
-	$(TEST)/ladybird.jpg        \
-	\
-	$(TEST)/vertex_array.ml     \
-	$(TEST)/vertex_array.sh     \
-	$(TEST)/vertex_array.find   \
-	\
-	$(TEST)/vbo_example.ml      \
-	$(TEST)/vbo_example.sh      \
-	$(TEST)/vbo_example.find    \
-	$(TEST)/vbo_example_1.ml    \
-	$(TEST)/vbo_example_2.ml    \
-	\
-	$(TEST)/put_points.ml       \
-	$(TEST)/ext.ml              \
-	\
-	$(TEST)/ariane_fungl.ml     \
-	$(TEST)/ariane_fungl.sh     \
-	$(TEST)/ariane_fungl.find   \
-	\
-	$(TEST)/d1.ml               \
-	$(TEST)/d1.sh               \
-	\
-	$(TEST)/SExprLite.ml        \
-	$(TEST)/SExprLite.mli       \
-	$(TEST)/demo_sexpr.ml       \
-	$(TEST)/sixa.se             \
-	\
-	$(TEST)/test_ftgl.ml        \
-	\
-	$(TEST)/glsl.ml             \
-	#EOL
-
-#	$(TEST)/glsl1.ml            \
-#	$(TEST)/glsl2.ml            \
-
-
-TEST3_FILES=\
-	$(TEST3)/README.txt         \
-	$(TEST3)/Makefile           \
-	$(TEST3)/run.sh             \
-	$(TEST3)/comp.sh            \
-	$(TEST3)/find.sh            \
-	$(TEST3)/ogl_matrix.ml      \
-	$(TEST3)/ogl_matrix.mli     \
-	$(TEST3)/ogl_draw.ml        \
-	$(TEST3)/ogl_draw.mli       \
-	$(TEST3)/shaders.ml         \
-	$(TEST3)/ogl3_vbo.ml        \
-	$(TEST3)/ogl3_vao.ml        \
-	$(TEST3)/ogl3_highlevel.ml  \
-	#EOL
-
 
 QUATERN=toolbox/quaternions/
 QUATERN_FILES=\
@@ -362,144 +275,11 @@ ROOT_FILES=\
 	TODO                        \
 	#EOL
 
-SMPL=RedBook-Samples
-SMPL_FILES=\
-	$(SMPL)/Makefile            \
-	$(SMPL)/bezcurve.ml         \
-	$(SMPL)/bezmesh.ml          \
-	$(SMPL)/bitmap.ml           \
-	$(SMPL)/blending.ml         \
-	$(SMPL)/picksquare.ml       \
-	$(SMPL)/picksquare_ba.ml    \
-	$(SMPL)/quadric.ml          \
-	$(SMPL)/sb2db.ml            \
-	$(SMPL)/depthcue.ml         \
-	$(SMPL)/stencil.ml          \
-	$(SMPL)/model.ml            \
-	$(SMPL)/teaambient.ml       \
-	$(SMPL)/polyoff.ml          \
-	$(SMPL)/anti.ml             \
-	$(SMPL)/plane.ml            \
-	$(SMPL)/accpersp.ml         \
-	$(SMPL)/double.ml           \
-	$(SMPL)/robot.ml            \
-	$(SMPL)/aapoly.ml           \
-	$(SMPL)/aapoly.sh           \
-	$(SMPL)/tesswind.ml         \
-	$(SMPL)/varray.ml           \
-	$(SMPL)/varray.sh           \
-	$(SMPL)/stencil_mask.ml     \
-	$(SMPL)/clip.ml             \
-	$(SMPL)/fog.ml              \
-	$(SMPL)/alpha.ml            \
-	$(SMPL)/unproject.ml        \
-	$(SMPL)/nurbs.ml            \
-	$(SMPL)/cube.ml             \
-	$(SMPL)/wrap.ml             \
-	$(SMPL)/aargb.ml            \
-	$(SMPL)/dof.ml              \
-	$(SMPL)/movelight.ml        \
-	$(SMPL)/accanti.ml          \
-	$(SMPL)/polys.ml            \
-	$(SMPL)/font.ml             \
-	$(SMPL)/texgen.ml           \
-	$(SMPL)/stroke.ml           \
-	$(SMPL)/drawf.ml            \
-	#EOL
-
-INTRF=LablGL
-INTRF_FILES=\
-	$(INTRF)/README.txt         \
-	$(INTRF)/Makefile           \
-	$(INTRF)/LablGL.ml          \
-	$(INTRF)/test.sh            \
-	$(INTRF)/LablGL_to_glMLite.ml   \
-	$(INTRF)/LablGL_to_glMLite.tab  \
-	#EOL
-
-INTRF_SMPL=$(INTRF)/lablGL_samples
-INTRF_SMPL_FILES=\
-	$(INTRF_SMPL)/simple.ml     \
-	$(INTRF_SMPL)/scene.ml      \
-	$(INTRF_SMPL)/gears.ml      \
-	$(INTRF_SMPL)/balls.ml      \
-	$(INTRF_SMPL)/morph3d.ml    \
-	#EOL
-
-GLED=gle-examples
-GLED_FILES=\
-	$(GLED)/README.txt          \
-	$(GLED)/COPYING.artistic.txt \
-	$(GLED)/Makefile            \
-	$(GLED)/Makefile.demo       \
-	$(GLED)/rundemo.sh          \
-	$(GLED)/demo.sh             \
-	$(GLED)/.capitalize.ml      \
-	$(GLED)/mainsimple.ml       \
-	$(GLED)/mainvar.ml          \
-	$(GLED)/alpha.ml            \
-	$(GLED)/cone.ml             \
-	$(GLED)/main_cone.ml        \
-	$(GLED)/cylinder.ml         \
-	$(GLED)/main_cylinder.ml    \
-	$(GLED)/horn.ml             \
-	$(GLED)/joinoffset.ml       \
-	$(GLED)/mainjoin.ml         \
-	$(GLED)/texas.ml            \
-	$(GLED)/twistoid.ml         \
-	$(GLED)/beam.ml             \
-	#EOL
-
-NEHE=nehe-examples
-NEHE_SUBS := $(NEHE)/Data
-NEHE_FILES=\
-	$(NEHE)/lesson01.ml         \
-	$(NEHE)/lesson1.ml          \
-	$(NEHE)/lesson2.ml          \
-	$(NEHE)/lesson3.ml          \
-	$(NEHE)/lesson4.ml          \
-	$(NEHE)/lesson5.ml          \
-	$(NEHE)/lesson6.ml          \
-	$(NEHE)/lesson6.sh          \
-	$(NEHE)/lesson7.ml          \
-	$(NEHE)/lesson7.sh          \
-	$(NEHE)/lesson8.ml          \
-	$(NEHE)/lesson8.sh          \
-	$(NEHE)/lesson9.ml          \
-	$(NEHE)/lesson9.sh          \
-	$(NEHE)/lesson10.ml         \
-	$(NEHE)/lesson10.sh         \
-	$(NEHE)/lesson12.ml         \
-	$(NEHE)/lesson12.sh         \
-	$(NEHE)/lesson13.ml         \
-	$(NEHE)/lesson13.sh         \
-	$(NEHE)/lesson16.ml         \
-	$(NEHE)/lesson16.sh         \
-	$(NEHE)/lesson16.make       \
-	$(NEHE)/lesson18.ml         \
-	$(NEHE)/lesson25.ml         \
-	$(NEHE)/lesson26.ml         \
-	$(NEHE)/lesson27.ml         \
-	#EOL
-
-
 LICENSE_GPL.txt:
 	wget http://www.gnu.org/licenses/gpl-3.0.txt
 	mv  gpl-3.0.txt  $@
 
 $(PACK):  $(ROOT_FILES)
-	if [ ! -d $@ ]; then mkdir $@ ; fi
-	cp $^ $@/
-
-
-$(PACK)/$(TEST):  $(TEST_FILES)
-	if [ ! -d $(PACK) ]; then mkdir $(PACK) ; fi
-	if [ ! -d $@ ]; then mkdir $@ ; fi
-	cp $^ $@/
-
-
-$(PACK)/$(TEST3):  $(TEST3_FILES)
-	if [ ! -d $(PACK) ]; then mkdir $(PACK) ; fi
 	if [ ! -d $@ ]; then mkdir $@ ; fi
 	cp $^ $@/
 
@@ -558,8 +338,6 @@ $(PACK)/$(SRC):  $(SRC_FILES)
 
 pack-dir:    $(PACK)               \
              $(PACK)/$(SRC)        \
-             $(PACK)/$(TEST)       \
-             $(PACK)/$(TEST3)      \
              $(PACK)/$(QUATERN)    \
              $(PACK)/$(INTRF)      \
              $(PACK)/$(INTRF_SMPL) \
@@ -569,8 +347,6 @@ pack-dir:    $(PACK)               \
 
 $(PACK).tar: $(PACK)               \
              $(PACK)/$(SRC)        \
-             $(PACK)/$(TEST)       \
-             $(PACK)/$(TEST3)      \
              $(PACK)/$(QUATERN)    \
              $(PACK)/$(INTRF)      \
              $(PACK)/$(INTRF_SMPL) \

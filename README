@@ -33,8 +33,10 @@ Required packages :
  - ocaml-native-compilers
  - libsdl-ocaml-dev
  - libsdl-ocaml
- - libmagickcore-dev
- - libmagickcore3
+ - freeglut3-dev
+ - freeglut3
+ - libmagickcore-dev (ImageMagick-devel)
+ - libmagickcore3 (ImageMagick)
  - lablgtk2-ocaml-dev
  - lablgtk2-ocaml
 

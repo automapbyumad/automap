@@ -176,6 +176,12 @@ let canny_slider = GRange.scale `HORIZONTAL
   ~show:false
   ~packing:hbox_canny#add ()
 
+let auto_fill = GButton.check_button
+    ~label:"Auto Fill"
+    ~active:true
+    ~show:false
+    ~packing:vbox1#add ()
+
 let lbl_coef = GMisc.label
   ~text:"Coefficent"
   ~show:false
@@ -1050,6 +1056,7 @@ let settings_canny src =
 			window1#destroy (); hbox_canny#misc#show ();
 			lbl_canny#misc#show (); canny_slider#misc#show ();
 			lbl_coef#misc#show (); coef_slider#misc#show ();
+			auto_fill#misc#show ();
 			hbox_canny2#misc#show (); btn_finalize#misc#show ())
     
 let generate_cfg () =
@@ -1319,6 +1326,7 @@ let on_reset src =
   image_box#set_file "temp.bmp";
   canny_slider#misc#hide ();
   lbl_canny#misc#hide ();
+  auto_fill#misc#hide ();
   coef_slider#misc#hide ();
   lbl_coef#misc#hide ();
   hbox_canny#misc#hide ();
@@ -1334,9 +1342,12 @@ let on_fill src x y =
   and coef = int_of_float coef_slider#adjustment#value in
   let (r,g,b) = Sdlvideo.get_pixel_color dst x y in
   let key = (r/coef, g/coef, b/coef) in
-  List.iter 
-    (fun (x',y') -> fill canny dst x' y' (cv,cv,cv)) 
-    (Hashtbl.find_all !color_areas key);
+  if auto_fill#active then
+    List.iter 
+      (fun (x',y') -> fill canny dst x' y' (cv,cv,cv)) 
+      (Hashtbl.find_all !color_areas key)
+  else
+    fill canny dst x y (cv,cv,cv);
   save_as dst "temp.bmp";
   image_box#set_file "temp.bmp";
   ()
