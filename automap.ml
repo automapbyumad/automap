@@ -1241,7 +1241,10 @@ let settings_3d () =
        E3D.ortho := ortho#active;
        E3D.yScale := recup_float yScale;
        E3D.yDecal := recup_float yDecal;      
-       E3D.main "test.obj" "temp.bmp" fps_val)
+       if !can_paint then
+	 E3D.main "test.obj" open_dialog#filename fps_val
+       else
+	 E3D.main "test.obj" "temp.bmp" fps_val;)
        
 let settings_sampling src = 
   let nb_colors = List.length !list_color in
