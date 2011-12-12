@@ -50,7 +50,8 @@ let quadTree outName picName dims range =
       !b
   in
   let out = open_out outName in
-  output_string out "# Generated with Automap by UMAD team\n# http://umad.fr.nf\n";
+  output_string out 
+    "# Generated with Automap by UMAD team\n# http://umad.fr.nf\n";
   let rec buildTree i0 i1 i2 i3 dims = 
     (*  i0 - i3-->
         |     |
@@ -112,11 +113,3 @@ let quadTree outName picName dims range =
     Printf.fprintf out "# %d %d\n" (Vector.size vec) (!numFaces);
     Printf.printf "time spent : %f sec.\n" (Unix.gettimeofday() -. startTime);
     close_out out
-
-(*
-let _ =
-  if Array.length Sys.argv >= 4 then
-    quadTree Sys.argv.(1) Sys.argv.(2) (int_of_string Sys.argv.(3)) (int_of_string Sys.argv.(4))
-  else
-    quadTree "test.obj" "/home/levak/CarteGenerator/carte2.jpg" 8 0
-*)

@@ -775,7 +775,7 @@ let rec mainLoop screen model textures =
   end
 
 (* Setup the screen *)
-let main obj tex fps =
+let main obj tex heightmap fps =
   Sdl.init [`EVERYTHING];
   Sdlwm.set_caption ~title:"AutoMap" ~icon:"";
   internalTimer := Sdltimer.get_ticks ();
@@ -806,23 +806,12 @@ let main obj tex fps =
     let filename = findObjFile obj in
       print_endline "Trying to load 3D model ...";       
       let model = new obj3D (countVerticesAndFaces (open_in filename)) in
-	print_endline "Loading 3D model ...";
-	model#load filename tex;
-	print_endline "3D model successfuly loaded !";
-	mainLoop screen model textures;
-	model#destroy;
-	disableEverything ();
-	GL.glDeleteTextures textures;
-	Sdl.quit ()
-(*
-let _ = 
-  if Array.length Sys.argv >= 3 then
-    begin
-      let obj = Sys.argv.(1) and
-	  tex = Sys.argv.(2) and
-	  fps = if Array.length Sys.argv >= 4 then Sys.argv.(3) else "14" in
-      main obj tex (int_of_string fps)
-    end
-  else
-    print_endline "USAGE : e3D obj_filename texture_filename [fps]"
- *)
+      print_endline "Loading 3D model ...";
+      model#load filename heightmap;
+      print_endline "3D model successfuly loaded !";
+      mainLoop screen model textures;
+      model#destroy;
+      disableEverything ();
+      GL.glDeleteTextures textures;
+      Sdl.quit ()
+

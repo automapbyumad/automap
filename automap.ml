@@ -773,10 +773,14 @@ let rec quadtree img s (x, y, xe, ye) subdiv dst invert =
   if not(subdiv = 0) && not(is_same_color img (x, y, xe, ye)) then
     begin
       let size = int_of_float ((float_of_int s) /. 2.) in
-      ignore(quadtree img size (x, y, (x+size), (y+size)) (subdiv-1) dst invert);
-      ignore(quadtree img size ((x+size), y, (xe), (y+size)) (subdiv-1) dst invert);
-      ignore(quadtree img size (x, (y+size), (x+size), (ye)) (subdiv-1) dst invert);
-      ignore(quadtree img size ((x+size), (y+size), (xe), (ye)) (subdiv-1) dst invert);
+      ignore(quadtree img size 
+	       (x, y, (x+size), (y+size)) (subdiv-1) dst invert);
+      ignore(quadtree img size 
+	       ((x+size), y, (xe), (y+size)) (subdiv-1) dst invert);
+      ignore(quadtree img size 
+	       (x, (y+size), (x+size), (ye)) (subdiv-1) dst invert);
+      ignore(quadtree img size 
+	       ((x+size), (y+size), (xe), (ye)) (subdiv-1) dst invert);
       
       let black = not(invert) in
       vline img dst x y ye black;
@@ -898,7 +902,8 @@ let settings_noise src =
       let nb_color_value = int_of_float (nb_color#adjustment#value) in
       let range_value = int_of_float (range#adjustment#value) in
       let dst = unnoise src treshold_value in
-      let color_list = n_max (reduct dst treshold_value) treshold_value nb_color_value range_value in
+      let color_list = n_max (reduct dst treshold_value) 
+	treshold_value nb_color_value range_value in
       save_tmp (replace_near dst treshold_value color_list);
       temp := Sdlloader.load_image "temp.bmp";
       image_box#set_file "temp.bmp";
@@ -964,8 +969,10 @@ let settings_gaussian src =
   ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
   btn_ok#connect#clicked
     ~callback:(fun _ -> let sigma_value = sigma_coef#adjustment#value in
-			let step_value = int_of_float (step#adjustment#value) in
-			save_tmp (apply_gaussian_mask src step_value sigma_value);
+			let step_value = int_of_float 
+			  (step#adjustment#value) in
+			save_tmp 
+			  (apply_gaussian_mask src step_value sigma_value);
 			temp := Sdlloader.load_image "temp.bmp";
 			image_box#set_file "temp.bmp";
 			window1#destroy ())
@@ -1031,7 +1038,8 @@ let settings_canny src =
   btn_ok#connect#clicked
     ~callback:(fun _ ->	let low_treshold = lowtreshold#adjustment#value in
 			let high_treshold = hightreshold#adjustment#value in
-			let canny = apply_sobel_mask src low_treshold high_treshold in
+			let canny = apply_sobel_mask src 
+			  low_treshold high_treshold in
 			save_as canny "canny.bmp";
 			let mark = Sdlloader.load_image "temp.bmp" in
 			let w, h, p = Sdlvideo.surface_dims mark in
@@ -1136,13 +1144,13 @@ let settings_quadtree () =
 	     Sdlvideo.put_pixel_color dst x y Sdlvideo.black
 	   done
 	 done;
-       save_as (quadtree src w (0, 0, (w-1), (w-1)) !refdiv_value dst invert_bool)
+       save_as (quadtree src w 
+		  (0, 0, (w-1), (w-1)) !refdiv_value dst invert_bool)
 "temp_qt.bmp";
        image_box#set_file "temp_qt.bmp";
        window1#destroy ();
        generate_cfg ();
       QuadTree.quadTree "test.obj" "temp.bmp" !refdiv_value 0)
-       (*E3D.main "test.obj" "temp.bmp" 30*) 
 
 let settings_3d () =
   let window1 = GWindow.window
@@ -1240,11 +1248,9 @@ let settings_3d () =
        E3D.textured := textured#active;
        E3D.ortho := ortho#active;
        E3D.yScale := recup_float yScale;
-       E3D.yDecal := recup_float yDecal;      
-       if !can_paint then
-	 E3D.main "test.obj" open_dialog#filename fps_val
-       else
-	 E3D.main "test.obj" "temp.bmp" fps_val;)
+       E3D.yDecal := recup_float yDecal;
+       E3D.main "test.obj" open_dialog#filename "temp.bmp" fps_val)
+       
        
 let settings_sampling src = 
   let nb_colors = List.length !list_color in
@@ -1419,7 +1425,8 @@ let sdl_launch () =
 	false
     ));
   ignore(btn_finalize#connect#clicked
-    ~callback:(fun _ -> save_tmp (find_no_mark (Sdlloader.load_image "mark.bmp"));
+    ~callback:(fun _ -> save_tmp 
+      (find_no_mark (Sdlloader.load_image "mark.bmp"));
       image_box#set_file "temp.bmp"; temp := Sdlloader.load_image "temp.bmp" ));
   if (not(!firstime)) then
     begin
