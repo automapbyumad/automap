@@ -6,20 +6,20 @@ let int = int_of_float
 (* calcule Somme 0->n de (5*4^n)
    en version assez optimale
    (se souvient de la précédente puissance de 4) *)
-let rec sumFiveTimesFourPowN acc = function 
+let rec sumFiveTimesFourPowN acc = function
   |(-1) -> 4
   | y -> acc + sumFiveTimesFourPowN (acc*4) (y-1)
 
 (* Détermine si une couleur donnée est dans
    le champ d'action d'une autre *)
-let is_in_range c1 c2 range = 
+let is_in_range c1 c2 range =
   let (r1, g1, b1) = c1 and (r2, g2, b2) = c2 in
     (r1 >= r2 - range && r1 <= r2 + range)
 && (g1 >= g2 - range && g1 <= g2 + range)
 && (b1 >= b2 - range && b1 <= b2 + range)
 
 (* Génération du quadrillage optimisé *)
-let quadTree outName picName dims range = 
+let quadTree outName picName dims range =
   let startTime = Unix.gettimeofday () and
       numFaces = ref 0 and
       max_points = (sumFiveTimesFourPowN 5 (dims-1)) in
@@ -33,7 +33,7 @@ let quadTree outName picName dims range =
     let level =  0.3 *. (float r) +. 0.59 *. (float g) +. 0.11 *. (float b) in
     let np = {x=x; y=(int level); z=y} in
       try Hashtbl.find htbl (x, y)
-      with Not_found -> 
+      with Not_found ->
 	Vector.add_last np vec;
 	Hashtbl.add htbl (x, y) (Vector.size vec - 1);
 	Vector.size vec - 1
@@ -50,9 +50,9 @@ let quadTree outName picName dims range =
       !b
   in
   let out = open_out outName in
-  output_string out 
+  output_string out
     "# Generated with Automap by UMAD team\n# http://umad.fr.nf\n";
-  let rec buildTree i0 i1 i2 i3 dims = 
+  let rec buildTree i0 i1 i2 i3 dims =
     (*  i0 - i3-->
         |     |
         i1 - i2
@@ -101,9 +101,9 @@ let quadTree outName picName dims range =
     ignore(addPoint (w-1) (h-1));
     ignore(addPoint (w-1) 0    );
     buildTree 1 2 3 0 dims;
- 
+
     Vector.iter
-      (fun x -> 
+      (fun x ->
 	 if x.x >= 0 || x.y >= 0 || x.z >= 0 then
 	   Printf.fprintf out "v %d %d %d\n" (x.x - wDiv2) x.y (x.z - hDiv2)
       )

@@ -25,9 +25,9 @@
 (* Height offset *)  let yDecal = ref 0.
 (* Height scale *)   let yScale = ref 1.
 (* Light position *) let liX= ref (-200.) and liY= ref 100. and liZ= ref (-100.)
-(* Normalized light vector *) let (liNX, liNY, liNZ) = 
-  begin 
-    let l = sqrt(!liX *. !liX +. !liY *. !liY +. !liZ *. !liZ) in 
+(* Normalized light vector *) let (liNX, liNY, liNZ) =
+  begin
+    let l = sqrt(!liX *. !liX +. !liY *. !liY +. !liZ *. !liZ) in
      (ref (!liX/.l), ref (!liY/.l), ref (!liZ/.l))
   end
 (* Zoom factor *)     let zoom = ref 1.
@@ -50,11 +50,11 @@ let internalTimer = ref 0
 let refTimer = ref 70 (* 1000 / fps = refTimer *)
 (* Window dimensions *)   let ww = ref 640. and wh = ref 400.
 (* Window aspect ratio *) let wratio = ref 0.
- 
+
 (* Count how many vertices and faces there are in the input OBJ file
    BUT can also find at the end of the file a line containing those data
    like that : # numVertices numFaces *)
-let countVerticesAndFaces inputFile = 
+let countVerticesAndFaces inputFile =
   begin let pos = ref 1 and c = ref ' ' in
     try
       while !c != 'v' && !c != 'f' && !c != '#' do
@@ -64,15 +64,15 @@ let countVerticesAndFaces inputFile =
       done
   with Exit -> seek_in inputFile (in_channel_length inputFile - !pos); end;
   match Str.split (Str.regexp_string " ") (input_line inputFile) with
-    | ["#"; vn; fn] -> 
+    | ["#"; vn; fn] ->
 	close_in inputFile;
 	(int_of_string vn, int_of_string fn)
-    | _ -> 
+    | _ ->
 	seek_in inputFile 0;
 	let vn = ref 0 and fn = ref 0 in
 	  begin try
 	    while true do
-	      match Str.split (Str.regexp_string " ") (input_line inputFile) 
+	      match Str.split (Str.regexp_string " ") (input_line inputFile)
 	      with
 		| e::_ when e = "v" -> vn := !vn + 1
 		| e::_ when e = "f" -> fn := !fn + 1
@@ -80,16 +80,16 @@ let countVerticesAndFaces inputFile =
 	    done
 	  with End_of_file -> close_in inputFile end;
 	  (!vn, !fn)
-	    
+
 (* Check if the given file name corresponds to an existing file.
    If so, it returns the correct filename.
    If not, try to load the default file, and if it fails again
    exit the program (no way to continue) *)
-let rec findObjFile filename = 
+let rec findObjFile filename =
   try
       ignore(open_in filename);
       filename;
-  with Sys_error e -> 
+  with Sys_error e ->
     print_endline e;
     let newfile = "not_found.obj" in
       if filename <> newfile then
@@ -106,17 +106,17 @@ let rec findObjFile filename =
 
 exception NoSuchImporter of string
 
-let load_image filename = 
-  try Genimg_loader.load_img (GL.Filename filename) 
+let load_image filename =
+  try Genimg_loader.load_img (GL.Filename filename)
   with _ -> raise (NoSuchImporter filename)
 
 let loadTextures names =
   let texArray = GL.glGenTextures (Array.length names) in
-    Array.iteri (fun i tex_id -> 
+    Array.iteri (fun i tex_id ->
 		   try
-		     let (data, w, h, iformat, pformat) = 
+		     let (data, w, h, iformat, pformat) =
 		       load_image names.(i) in
-		     begin 
+		     begin
 		       if i = 0 then
 			 begin
 			   pw:=float w;
@@ -125,25 +125,25 @@ let loadTextures names =
 		       else ()
 		     end;
 		     GL.glBindTexture2D tex_id;
-		     GL.glTexImage2D 
+		     GL.glTexImage2D
 		       ~target:GL.TexTarget.GL_TEXTURE_2D
 		       ~level:0
-		       ~internal_format:iformat 
-		       ~width:w 
+		       ~internal_format:iformat
+		       ~width:w
 		       ~height:h
-		       ~format_:pformat 
+		       ~format_:pformat
 		       ~type_:GL.GL_UNSIGNED_BYTE
 		       ~pixels:data
-		   with NoSuchImporter s -> 
+		   with NoSuchImporter s ->
 		     print_endline ("no such importer for "^s)
     )
       texArray;
   texArray
 
-let enableTexture id = 
-  GL.glTexParameter GL.TexParam.GL_TEXTURE_2D 
+let enableTexture id =
+  GL.glTexParameter GL.TexParam.GL_TEXTURE_2D
     (GL.TexParam.GL_TEXTURE_MIN_FILTER GL.Min.GL_LINEAR);
-  GL.glTexParameter GL.TexParam.GL_TEXTURE_2D 
+  GL.glTexParameter GL.TexParam.GL_TEXTURE_2D
     (GL.TexParam.GL_TEXTURE_MAG_FILTER GL.Mag.GL_LINEAR);
   GL.glBindTexture2D id
 
@@ -158,29 +158,29 @@ class obj3D (nv,nf) = object (self)
 
 (* obj#load <obj file> <heightmap used for generation>*)
   method load fname heightmap =
-    let vertexArray = 
+    let vertexArray =
       Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*3)
-    and textureArray = 
+    and textureArray =
       Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*2)
-    and detailMapArray = 
+    and detailMapArray =
       Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*2)
-    and faceArray =  
+    and faceArray =
       Bigarray.Array1.create Bigarray.int32 Bigarray.c_layout (nf*4)
-    and vertexNormalArray = 
+    and vertexNormalArray =
       Bigarray.Array1.create Bigarray.float32 Bigarray.c_layout (nv*3)
     in
     Printf.printf "vertices : %d\nfaces : %d\n" nb_vertices nb_faces;
-    (* Parses vertices found in the input OBJ file 
+    (* Parses vertices found in the input OBJ file
        AND returns the bounding box *)
     (* Parses faces found in the input OBJ file *)
-    let inputFile = open_in fname 
+    let inputFile = open_in fname
     and max = ref 0. and may = ref 0. and maz = ref 0. and
 	mix = ref 0. and miy = ref 0. and miz = ref 0. and
 	nv = ref 0 and nf = ref 0 in
     let hmap = Sdlloader.load_image heightmap in
     let (wh, hh, _)  = Sdlvideo.surface_dims hmap in
-    let getLevel x y = 
-      let (r,g,b) = 
+    let getLevel x y =
+      let (r,g,b) =
 	Sdlvideo.get_pixel_color hmap (int_of_float x) (int_of_float y) in
 	int_of_float (0.3*.(float r) +. 0.59*.(float g) +. 0.11*.(float b))
     in
@@ -249,8 +249,8 @@ class obj3D (nv,nf) = object (self)
       with End_of_file -> close_in inputFile end;
       print_endline "done";
       zoom := (!maz -. !miz) /. 3.5;
- 
-      
+
+
       print_endline "Launching vertex normal calculation...";
 (* Vertex Normal calculation *)
       for i = 0 to nb_faces-1 do
@@ -285,8 +285,8 @@ class obj3D (nv,nf) = object (self)
 	    vertexNormalArray.{3*c+2} <- vertexNormalArray.{3*c+2} +. fnz
 	  end
       done;
-      
-  (* Vertex Normal normalization => n in [-1;1] *)      
+
+  (* Vertex Normal normalization => n in [-1;1] *)
       for n = 0 to nb_vertices-1 do
 	let vnx = vertexNormalArray.{3*n  } and
 	    vny = vertexNormalArray.{3*n+1} and
@@ -297,44 +297,44 @@ class obj3D (nv,nf) = object (self)
 	vertexNormalArray.{3*n+2} <- vnz/.l
       done;
       Printf.printf "done\n%!";
-	
+
 (* Add Vertices to VBO *)
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboVertices;
-      VBO.glBufferData VBO.GL_ARRAY_BUFFER 
+      VBO.glBufferData VBO.GL_ARRAY_BUFFER
 	(VBO.ba_sizeof vertexArray) vertexArray VBO.GL_STATIC_DRAW;
 
 (* Add Textures Coordinates to VBO *)
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboTexture;
-      VBO.glBufferData VBO.GL_ARRAY_BUFFER 
+      VBO.glBufferData VBO.GL_ARRAY_BUFFER
 	(VBO.ba_sizeof textureArray) textureArray VBO.GL_STATIC_DRAW;
 
 (* Add Detail Map Coordinates to VBO *)
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboDetailMap;
-      VBO.glBufferData VBO.GL_ARRAY_BUFFER 
+      VBO.glBufferData VBO.GL_ARRAY_BUFFER
 	(VBO.ba_sizeof detailMapArray) detailMapArray VBO.GL_STATIC_DRAW;
 
 (* Add Face indices to VBO *)
       VBO.glBindBuffer VBO.GL_ELEMENT_ARRAY_BUFFER vboFaces;
-      VBO.glBufferData VBO.GL_ELEMENT_ARRAY_BUFFER 
+      VBO.glBufferData VBO.GL_ELEMENT_ARRAY_BUFFER
 	(VBO.ba_sizeof faceArray) faceArray VBO.GL_STATIC_DRAW;
- 
+
 (* Add Vertex Normals to VBO *)
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboNormals;
-      VBO.glBufferData VBO.GL_ARRAY_BUFFER 
+      VBO.glBufferData VBO.GL_ARRAY_BUFFER
 	(VBO.ba_sizeof vertexNormalArray) vertexNormalArray VBO.GL_STATIC_DRAW;
-      
+
       VertArray.glEnableClientState VertArray.GL_NORMAL_ARRAY;
       VertArray.glEnableClientState VertArray.GL_VERTEX_ARRAY;
-      
+
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboNormals;
       VertArray.glNormalPointer0 VertArray.Norm.GL_FLOAT 0;
-         
+
       VBO.glBindBuffer VBO.GL_ARRAY_BUFFER vboVertices;
       VBO.glBindBuffer VBO.GL_ELEMENT_ARRAY_BUFFER vboFaces;
       VertArray.glVertexPointer0 3 VertArray.Coord.GL_FLOAT 0
 
-  method draw textures = 
-    if !textured then 
+  method draw textures =
+    if !textured then
       begin
 	GL.glClientActiveTexture GL.GL_TEXTURE0;
 	GL.glEnable GL.GL_TEXTURE_2D;
@@ -343,7 +343,7 @@ class obj3D (nv,nf) = object (self)
 	GL.glActiveTexture GL.GL_TEXTURE0;
 	VertArray.glEnableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
 	enableTexture textures.(0);
-	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV 
+	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV
 	  GL.TexEnv.GL_TEXTURE_ENV_MODE GL.TexEnv.GL_MODULATE;
 
 	GL.glClientActiveTexture GL.GL_TEXTURE1;
@@ -353,17 +353,17 @@ class obj3D (nv,nf) = object (self)
 	GL.glActiveTexture GL.GL_TEXTURE1;
 	VertArray.glEnableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
 	enableTexture textures.(1);
-	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV 
+	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV
 	  GL.TexEnv.GL_TEXTURE_ENV_MODE GL.TexEnv.GL_COMBINE;
-	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV 
+	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV
 	  GL.TexEnv.GL_COMBINE_RGB GL.TexEnv.GL_INTERPOLATE;
-	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV 
+	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV
 	  GL.TexEnv.GL_SRC0_RGB GL.TexEnv.GL_TEXTURE;
-	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV 
+	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV
 	  GL.TexEnv.GL_OPERAND0_RGB GL.TexEnv.GL_SRC_COLOR;
-	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV 
+	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV
 	  GL.TexEnv.GL_SRC2_RGB GL.TexEnv.GL_PREVIOUS;
-	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV 
+	GL.glTexEnv GL.TexEnv.GL_TEXTURE_ENV
 	  GL.TexEnv.GL_OPERAND2_RGB GL.TexEnv.GL_SRC_COLOR;
 
 	GL.glClientActiveTexture GL.GL_TEXTURE2;
@@ -374,7 +374,7 @@ class obj3D (nv,nf) = object (self)
 	VertArray.glEnableClientState VertArray.GL_TEXTURE_COORD_ARRAY;
 	enableTexture textures.(1);
 
-	VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4) 
+	VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4)
 	  VertArray.Elem.GL_UNSIGNED_INT;
 
 	GL.glClientActiveTexture GL.GL_TEXTURE0;
@@ -393,11 +393,11 @@ class obj3D (nv,nf) = object (self)
 	GL.glDisable GL.GL_TEXTURE_2D;
 
 	GL.glActiveTexture GL.GL_TEXTURE0
-	
+
       end
     else
     (*    VertArray.glDrawArrays GL.GL_POINTS 0 (nb_vertices*3);*)
-      VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4) 
+      VertArray.glDrawElements0 GL.GL_QUADS (nb_faces*4)
 	VertArray.Elem.GL_UNSIGNED_INT
 
   method destroy =
@@ -435,11 +435,11 @@ let drawScene screen (model:obj3D) textures =
       ~near:(-300.5 *. !zoom)
       ~far:(30.5 *. !zoom)
   else
-    begin 
+    begin
       Glu.gluPerspective 60.0 (!wratio) (0.1 *. !zoom) (300000. *. !zoom);
-      Glu.gluLookAt 
-	0. 0. (!pw *. !zoom /. 100.) 
-	0. 0. (1. *. !zoom /. 100.) 
+      Glu.gluLookAt
+	0. 0. (!pw *. !zoom /. 100.)
+	0. 0. (1. *. !zoom /. 100.)
 	0. 1. 0.;
     end;
   GL.glMatrixMode GL.GL_MODELVIEW;
@@ -455,17 +455,17 @@ let drawScene screen (model:obj3D) textures =
 
   GL.glPushMatrix ();
   GL.glTranslatev (!intro_xpos, !intro_ypos, !intro_zpos);
-  
+
   GL.glPushMatrix ();
   GL.glTranslatev (!xpos, !ypos+. !yDecal +. !intro_yDecal, !zpos);
   GL.glRotatev ~angle:!xrot ~vec:(1.,0.,0.);
   GL.glRotatev ~angle:!yrot ~vec:(0.,1.,0.);
 
   GL.glScalev (1., (!yScale *. !intro_yScale), 1.);
-  begin if !anaglyph then 
+  begin if !anaglyph then
     GL.glColorMask false true true false;
   end;
-  GL.glLight 
+  GL.glLight
     ~light:(GL.GL_LIGHT 0)
     ~pname:(GL.Light.GL_POSITION (!liX, !liY, !liZ, -1.));
 
@@ -475,7 +475,7 @@ let drawScene screen (model:obj3D) textures =
   end;
   model#draw textures;
 
-(* If stereomode actived, render the scene another time 
+(* If stereomode actived, render the scene another time
    with a translated camera *)
   if !anaglyph then
     begin
@@ -495,9 +495,9 @@ let drawScene screen (model:obj3D) textures =
 	  GL.glMatrixMode GL.GL_PROJECTION;
 	  GL.glLoadIdentity ();
 	  Glu.gluPerspective 60.0 (!wratio) (0.1 *. !zoom) (300000. *. !zoom);
-	  Glu.gluLookAt 
-	    3. 0. (!pw *. !zoom /. 100.) 
-	    0. 0. (1. *. !zoom /. 100.) 
+	  Glu.gluLookAt
+	    3. 0. (!pw *. !zoom /. 100.)
+	    0. 0. (1. *. !zoom /. 100.)
 	    0. 1. 0.;
 	  GL.glMatrixMode GL.GL_MODELVIEW;
     	end;
@@ -507,12 +507,12 @@ let drawScene screen (model:obj3D) textures =
     end;
   GL.glPopMatrix ();
 
-  begin (* other non time-critical objects *) 
+  begin (* other non time-critical objects *)
     GL.glPushMatrix ();
     GL.glTranslatev (!xpos, !ypos, !zpos);
     GL.glRotatev ~angle:!xrot ~vec:(1.,0.,0.);
     GL.glRotatev ~angle:!yrot ~vec:(0.,1.,0.);
-    
+
     let size = 20.*. !pw +. !ph
     and decal = float !internalTimer /. 9001. in (* OVER 9000 !! *)
 
@@ -529,9 +529,9 @@ let drawScene screen (model:obj3D) textures =
     GL.glEnd ();
     GL.glColor3 1. 1. 1.;
 
-  
+
  (* SkyBox *)
-    let p1 = 253. /. 1024. and p2 = 770. /. 1024. in 
+    let p1 = 253. /. 1024. and p2 = 770. /. 1024. in
     GL.glEnable GL.GL_TEXTURE_2D;
     enableTexture textures.(3);
     (* Top *)
@@ -573,7 +573,7 @@ let drawScene screen (model:obj3D) textures =
      GL.glTexCoord2 p1 p1; GL.glVertex3 (-.size) size size;
      GL.glTexCoord2 0. p1; GL.glVertex3 (-.size) (-20.) size;
     GL.glEnd ();
- 
+
 (* Water *)
     GL.glEnable GL.GL_TEXTURE_2D;
     GL.glEnable GL.GL_BLEND;
@@ -587,7 +587,7 @@ let drawScene screen (model:obj3D) textures =
      GL.glTexCoord2 (!pw+.decal) !ph; GL.glVertex3 size 2. size;
      GL.glTexCoord2 decal !ph; GL.glVertex3 size 2. (-.size);
     GL.glEnd ();
-    GL.glEnable GL.GL_CULL_FACE;    
+    GL.glEnable GL.GL_CULL_FACE;
     GL.glDisable GL.GL_BLEND;
 
     if lighting then GL.glEnable GL.GL_LIGHTING;
@@ -599,7 +599,7 @@ let drawScene screen (model:obj3D) textures =
   GL.glFlush ();
   Sdlgl.swap_buffers ()
 
-let disableEverything () = 
+let disableEverything () =
   GL.glDepthFunc GL.GL_LESS;
   GL.glDisable GL.GL_CULL_FACE;
   GL.glDisable GL.GL_DEPTH_TEST;
@@ -607,11 +607,11 @@ let disableEverything () =
   GL.glDisable GL.GL_LIGHTING;
   GL.glDisable GL.GL_LIGHT0;
   GL.glDisable GL.GL_COLOR_MATERIAL
-    
+
 
 let toggleDisplayMode (n) =
   let max = 3 in
-    displayMode := (if n < 0 && !displayMode = 0 then max - 1 
+    displayMode := (if n < 0 && !displayMode = 0 then max - 1
 		    else (!displayMode + n) mod max);
     disableEverything ();
     print_string "Changed display mode to ";
@@ -621,7 +621,7 @@ let toggleDisplayMode (n) =
 	GL.glEnable GL.GL_TEXTURE_2D;
 	print_string "textured ";
       end;
-    
+
     begin match !displayMode with
       | 0 -> print_endline "wireframe"
       | 1 ->
@@ -647,15 +647,15 @@ let toggleDisplayMode (n) =
       | _ -> ();
     end
 
-let wiggle max = 
+let wiggle max =
   Random.self_init ();
   Random.float max
 
-let animateIntro () = 
+let animateIntro () =
   begin if !intro_step <= 3 then
       begin
 	begin match !intro_step with
-	  | 0 -> 
+	  | 0 ->
 	    xrot := -1.; yrot := -1.; zrot := 0.;
 	    xpos := 0.; ypos := -30.; zpos := 0.;
 	    zoom := !zoom /. 6.;
@@ -703,7 +703,7 @@ let panView xrel yrel =
 (* Here we handle all events *)
 let rec mainLoop screen model textures =
   if !intro then animateIntro ();
-  begin 
+  begin
     let newTimer = Sdltimer.get_ticks () in
       if newTimer - !internalTimer > !refTimer then
 	begin
@@ -715,10 +715,10 @@ let rec mainLoop screen model textures =
   begin match Sdlevent.poll () with
     | Some Sdlevent.KEYDOWN {Sdlevent.keysym=Sdlkey.KEY_ESCAPE}
     | Some Sdlevent.QUIT -> ()
-    | Some event -> 
+    | Some event ->
       begin match event with
-	| Sdlevent.KEYDOWN k -> 
-	  begin match k.Sdlevent.keysym with 
+	| Sdlevent.KEYDOWN k ->
+	  begin match k.Sdlevent.keysym with
 	    | Sdlkey.KEY_z -> toggleDisplayMode (1)
 	    | Sdlkey.KEY_s -> toggleDisplayMode (-1)
 	    | Sdlkey.KEY_q -> yScale := !yScale +. 0.1
@@ -738,29 +738,29 @@ let rec mainLoop screen model textures =
 	    | _ -> ()
 	  end;
 	  intro := false
-	  | Sdlevent.MOUSEMOTION e -> 
+	  | Sdlevent.MOUSEMOTION e ->
 	    begin match e.Sdlevent.mme_state with
-	      | [Sdlmouse.BUTTON_RIGHT] -> 
-		rotateView 
-		  (float e.Sdlevent.mme_xrel) 
+	      | [Sdlmouse.BUTTON_RIGHT] ->
+		rotateView
+		  (float e.Sdlevent.mme_xrel)
 		  (float e.Sdlevent.mme_yrel);
 	      | [Sdlmouse.BUTTON_LEFT] ->
-		panView 
-		  e.Sdlevent.mme_xrel 
+		panView
+		  e.Sdlevent.mme_xrel
 		  e.Sdlevent.mme_yrel;
 	      | _ -> ();
 	    end
-	  | Sdlevent.MOUSEBUTTONDOWN b 
+	  | Sdlevent.MOUSEBUTTONDOWN b
 	      when b.Sdlevent.mbe_button = Sdlmouse.BUTTON_WHEELDOWN ->
 	    zoom := !zoom *. 1.1;
-	  | Sdlevent.MOUSEBUTTONDOWN b 
+	  | Sdlevent.MOUSEBUTTONDOWN b
 	      when b.Sdlevent.mbe_button = Sdlmouse.BUTTON_WHEELUP ->
 	    zoom := !zoom /. 1.1;
 	  | event -> ();
       end;
       mainLoop screen model textures
 
-    | None -> 
+    | None ->
       begin if !animate then
 	  if not !anaglyph then
 	    rotateView 0.1 0.
@@ -780,11 +780,11 @@ let main obj tex heightmap fps =
   Sdlwm.set_caption ~title:"AutoMap" ~icon:"";
   internalTimer := Sdltimer.get_ticks ();
   refTimer := 1000 / fps;
-  let screen = 
-    (if !fullscreen then 
+  let screen =
+    (if !fullscreen then
 	Sdlvideo.set_video_mode 0 0 [`FULLSCREEN; `OPENGL; `DOUBLEBUF]
      else
-	Sdlvideo.set_video_mode 640 400 [`OPENGL; `DOUBLEBUF]) 
+	Sdlvideo.set_video_mode 640 400 [`OPENGL; `DOUBLEBUF])
   in
     begin let (w, h, _) = Sdlvideo.surface_dims screen in
       wratio := (float w) /. (float h);
@@ -804,7 +804,7 @@ let main obj tex heightmap fps =
 			       "images/water.jpg";
 			       "images/SkyBox.jpg"|] in
     let filename = findObjFile obj in
-      print_endline "Trying to load 3D model ...";       
+      print_endline "Trying to load 3D model ...";
       let model = new obj3D (countVerticesAndFaces (open_in filename)) in
       print_endline "Loading 3D model ...";
       model#load filename heightmap;
