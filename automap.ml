@@ -6,7 +6,6 @@ let _ = GMain.init ()
 let step = ref 20
 let list_color = ref []
 let list_height = ref (Array.make 0 0)
-let color_areas = ref (Hashtbl.create 83)
 let image_x = ref max_int and image_y = ref max_int
 let firstime = ref false
 let temp = ref (Obj.magic 0)
@@ -156,7 +155,7 @@ let canny_adjust = GData.adjustment
 
 let coef_adjust = GData.adjustment
   ~lower:1.
-  ~upper:100.
+  ~upper:255.
   ~step_incr:1.
   ~page_size:0. ()
  
@@ -551,7 +550,9 @@ let find_no_mark mark =
   done;
   mark
 
-let build_color_areas_table canny src coef =
+let build_color_areas_table src coef =
+  let color_areas = (Hashtbl.create 83) in
+  let canny = Sdlloader.load_image "canny.bmp" in
   save_as canny "area_buffer.bmp";
   let area_buffer = Sdlloader.load_image "area_buffer.bmp"
   and (w, h, _) = Sdlvideo.surface_dims src in  
@@ -577,11 +578,12 @@ let build_color_areas_table canny src coef =
 	  fill_rec x y Sdlvideo.white;	  
 	  let (r,g,b) = Sdlvideo.get_pixel_color src x y in
 	  let key = (r/coef, g/coef, b/coef) in
-	  Hashtbl.add !color_areas key (x,y)
+	  Hashtbl.add color_areas key (x,y);
 	end;
     done;
   done;
-  Sys.remove "area_buffer.bmp"
+  Sys.remove "area_buffer.bmp";
+  color_areas
 
 (* Noise Reduction *)
 
@@ -1030,8 +1032,6 @@ let settings_canny src =
 			let high_treshold = hightreshold#adjustment#value in
 			let canny = apply_sobel_mask src low_treshold high_treshold in
 			save_as canny "canny.bmp";
-			build_color_areas_table canny src 
-			  (int_of_float coef_slider#adjustment#value);
 			let mark = Sdlloader.load_image "temp.bmp" in
 			let w, h, p = Sdlvideo.surface_dims mark in
 			for i = 0 to (w-1) do
@@ -1340,12 +1340,17 @@ let on_fill src x y =
   and canny = Sdlloader.load_image "canny.bmp"
   and cv = int_of_float canny_slider#adjustment#value
   and coef = int_of_float coef_slider#adjustment#value in
-  let (r,g,b) = Sdlvideo.get_pixel_color dst x y in
+  let (r,g,b) = Sdlvideo.get_pixel_color !src x y in
   let key = (r/coef, g/coef, b/coef) in
   if auto_fill#active then
-    List.iter 
-      (fun (x',y') -> fill canny dst x' y' (cv,cv,cv)) 
-      (Hashtbl.find_all !color_areas key)
+    begin
+      List.iter 
+	(fun (x',y') -> fill canny dst x' y' (cv,cv,cv)) 
+	(Hashtbl.find_all 
+	   (build_color_areas_table !src 
+	      (int_of_float coef_slider#adjustment#value))
+	   key)
+    end
   else
     fill canny dst x y (cv,cv,cv);
   save_as dst "temp.bmp";
