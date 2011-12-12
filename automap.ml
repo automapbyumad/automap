@@ -1147,7 +1147,7 @@ let settings_quadtree () =
 let settings_3d () =
   let window1 = GWindow.window
     ~position:`CENTER
-    ~title:"QuadTree settings"
+    ~title:"3D settings"
     ~show:true
     ~width:450
     ~height:(500)
