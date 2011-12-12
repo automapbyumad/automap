@@ -6,7 +6,8 @@ let _ = GMain.init ()
 let step = ref 20
 let list_color = ref []
 let list_height = ref (Array.make 0 0)
-let image_x = ref max_int and image_y = ref max_int
+let image_x = ref max_int and image_y = ref max_int 
+let image_w = ref max_int and image_h = ref max_int
 let firstime = ref false
 let temp = ref (Obj.magic 0)
 let src = ref (Obj.magic 0)
@@ -1392,7 +1393,13 @@ let sdl_launch () =
 	     ~callback:(fun _ -> on_border (Sdlloader.load_image "temp.bmp")));
   image_x := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
     ((GtkBase.Widget.allocation image_box#as_widget).Gtk.width - w)/2;
+  image_w := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
+    (GtkBase.Widget.allocation image_box#as_widget).Gtk.width +
+    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.width - w)/2;
   image_y := (GtkBase.Widget.allocation image_box#as_widget).Gtk.y +
+    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
+  image_h := (GtkBase.Widget.allocation image_box#as_widget).Gtk.y +
+    (GtkBase.Widget.allocation image_box#as_widget).Gtk.height +
     ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
   main_window#event#add [`BUTTON_PRESS];
   ignore(main_window#event#connect#button_press (
@@ -1400,7 +1407,8 @@ let sdl_launch () =
 	begin
 	  let x = truncate (GdkEvent.Button.x t)
 	  and y = truncate (GdkEvent.Button.y t) in
-	  if x >= !image_x && y >= !image_y then
+	  if x >= !image_x && y >= !image_y && 
+	    x < !image_w && y < !image_h then
 	    on_fill src (x - !image_x) (y - !image_y);
 	  false
 	end
