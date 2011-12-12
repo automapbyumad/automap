@@ -119,7 +119,11 @@ let btn_about = GButton.tool_button
   ~packing:toolbar#insert ()
 
 let dialog = GWindow.about_dialog
-  ~authors:["Team UMAD"]
+  ~authors:["Team UMAD : 
+- Jérémy Anselme
+- Vincent Mirzaian 
+- Rémi Waser
+- Rémi Weng"]
   ~copyright: "Copyright © 2011-2012 UMAD"
   ~version:"2.0"
   ~website:"http://umad.fr.nf"
