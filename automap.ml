@@ -6,9 +6,11 @@ let _ = GMain.init ()
 let step = ref 20
 let list_color = ref []
 let list_height = ref (Array.make 0 0)
+let color_areas = ref (Hashtbl.create 0)
+let color_area_out_of_order = ref true
 let image_x = ref max_int and image_y = ref max_int
 let image_w = ref max_int and image_h = ref max_int
-let firstime = ref false
+let firstime = ref true
 let temp = ref (Obj.magic 0)
 let src = ref (Obj.magic 0)
 let refdiv_value = ref 5
@@ -195,7 +197,6 @@ let coef_slider = GRange.scale `HORIZONTAL
   ~adjustment:coef_adjust
   ~show:false
   ~packing:hbox_canny#add ()
-
 let hbox_canny2 = GPack.hbox
   ~packing:hbox_canny#add ()
 let btn_finalize = GButton.button
@@ -218,8 +219,7 @@ let rec list_invert = function
 
 exception Too_many_colors
 
-let print_border src =
-  let seuil = 30 in
+let print_border src seuil =
   let x, y, z = Sdlvideo.surface_dims src in
   let dst = Sdlvideo.create_RGB_surface_format src [] x y in
   let _ = list_color := [] in
@@ -556,39 +556,32 @@ let find_no_mark mark =
   mark
 
 let build_color_areas_table src coef =
-  let color_areas = (Hashtbl.create 83) in
-  let canny = Sdlloader.load_image "canny.bmp" in
-  save_as canny "area_buffer.bmp";
-  let area_buffer = Sdlloader.load_image "area_buffer.bmp"
-  and (w, h, _) = Sdlvideo.surface_dims src in
-  let rec fill_rec x y color =
-    let c = Sdlvideo.get_pixel_color area_buffer x y in
-    Sdlvideo.put_pixel_color area_buffer x y color;
-    for j = -1 to 1 do
-      for i = -1 to 1 do
-	if i <> 0 || j <> 0 then
-	  begin
-	    if x+i > 0 && x+i < w - 1
-	      && y+j > 0 && y+j < h - 1
-	      && c = Sdlvideo.get_pixel_color area_buffer (x+i) (y+j) then
-	      fill_rec (x+i) (y+j) color;
-	  end;
-      done
-    done
-  in
-  for y = 1 to h-2 do
-    for x = 1 to w-2 do
-      if Sdlvideo.get_pixel_color area_buffer x y <> Sdlvideo.white then
+  color_areas := (Hashtbl.create 83);
+  let area_buffer = Sdlloader.load_image "canny.bmp" in
+  let (w, h, _) = Sdlvideo.surface_dims area_buffer in
+  let rec fill_white x y =
+    if x > 0 && x < w - 1
+      && y > 0 && y < h - 1
+      && Sdlvideo.get_pixel_color area_buffer x y = Sdlvideo.black then
 	begin
-	  fill_rec x y Sdlvideo.white;
-	  let (r,g,b) = Sdlvideo.get_pixel_color src x y in
-	  let key = (r/coef, g/coef, b/coef) in
-	  Hashtbl.add color_areas key (x,y);
-	end;
-    done;
-  done;
-  Sys.remove "area_buffer.bmp";
-  color_areas
+	  Sdlvideo.put_pixel_color area_buffer x y Sdlvideo.white;
+	  fill_white x (y+1);
+	  fill_white x (y-1);
+	  fill_white (x-1) y;
+	  fill_white (x+1) y;
+	end
+  in
+    for y = 1 to h - 2 do
+      for x = 1 to w - 2 do
+	if Sdlvideo.get_pixel_color area_buffer x y <> Sdlvideo.white then
+	  begin
+	    fill_white x y;
+	    let (r,g,b) = Sdlvideo.get_pixel_color src x y in
+	    let key = (r/coef, g/coef, b/coef) in
+	      Hashtbl.add !color_areas key (x,y);
+	  end;
+      done;
+    done
 
 (* Noise Reduction *)
 
@@ -745,82 +738,26 @@ let replace_near img step list =
   done;
   dst
 
-(* 2D Quad Tree *)
-let vline src dst xs ys ye black=
-  for y=ys to ye do
-    if (black) then
-      Sdlvideo.put_pixel_color dst xs y (Sdlvideo.black)
-    else
-      Sdlvideo.put_pixel_color dst xs y (Sdlvideo.get_pixel_color src xs y)
-  done
-let hline src dst xs ys xe black =
-  for x=xs to xe do
-    if (black) then
-      Sdlvideo.put_pixel_color dst x ys (Sdlvideo.black)
-    else
-      Sdlvideo.put_pixel_color dst x ys (Sdlvideo.get_pixel_color src x ys)
-  done
-
-let is_same_color img (xs, ys, xe, ye) =
-  let tbl = Hashtbl.create ((xe-xs)*(xe-xs)) in
-  for y=ys to ye do
-    for x=xs to xe do
-      let color = Sdlvideo.get_pixel_color img x y in
-      if ( not(Hashtbl.mem tbl color) ) then
-	Hashtbl.add tbl color 0
-    done
-  done;
-  Hashtbl.length tbl == 1
-
-
-let rec quadtree img s (x, y, xe, ye) subdiv dst invert =
-  if not(subdiv = 0) && not(is_same_color img (x, y, xe, ye)) then
-    begin
-      let size = int_of_float ((float_of_int s) /. 2.) in
-      ignore(quadtree img size
-	       (x, y, (x+size), (y+size)) (subdiv-1) dst invert);
-      ignore(quadtree img size
-	       ((x+size), y, (xe), (y+size)) (subdiv-1) dst invert);
-      ignore(quadtree img size
-	       (x, (y+size), (x+size), (ye)) (subdiv-1) dst invert);
-      ignore(quadtree img size
-	       ((x+size), (y+size), (xe), (ye)) (subdiv-1) dst invert);
-
-      let black = not(invert) in
-      vline img dst x y ye black;
-      vline img dst (x+size) y ye black;
-      vline img dst xe y ye black;
-      hline img dst x y xe black;
-      hline img dst x (y+size) xe black;
-      hline img dst x ye xe black;
-    end;
-  dst
-
 (* Ma fonction fill new *)
 let fill canny dst x y color =
   let mark = Sdlloader.load_image "mark.bmp" in
-  let w, h, p = Sdlvideo.surface_dims canny in
-  let rec fill_rec x y =
-    Sdlvideo.put_pixel_color canny x y Sdlvideo.white;
-    Sdlvideo.put_pixel_color mark x y color;
-    Sdlvideo.put_pixel_color dst x y color;
-    let a = ref 0 and b = ref 0 in
-    for j = -1 to 1 do
-      for i = -1 to 1 do
-	if i <> 0 || j <> 0 then
-	  begin
-	    a := x+i;
-	    b := y+j;
-	    if !a > 0 && !a < w-1 && !b > 0 && !b < h-1
-	      && Sdlvideo.get_pixel_color canny !a !b = Sdlvideo.black then
-	      fill_rec !a !b;
-	  end;
-      done
-    done
+  let w, h, _ = Sdlvideo.surface_dims canny in
+  let rec fill_canny x y =
+    if x > 0 && x < w - 1 
+      && y > 0 && y < h - 1
+      && Sdlvideo.get_pixel_color canny x y = Sdlvideo.black then
+	begin
+	  Sdlvideo.put_pixel_color canny x y Sdlvideo.white;
+	  Sdlvideo.put_pixel_color mark x y color;
+	  Sdlvideo.put_pixel_color dst x y color;
+	  fill_canny x (y+1);
+	  fill_canny x (y-1);
+	  fill_canny (x+1) y;
+	  fill_canny (x-1) y
+	end;
   in
-  fill_rec x y;
+  fill_canny x y;
   save_as mark "mark.bmp"
-(*;  dst*)
 
 (* Height <> Colors textboxes *)
 let triple2string (r,g,b) =
@@ -1042,9 +979,13 @@ let settings_canny src =
   btn_ok#connect#clicked
     ~callback:(fun _ ->	let low_treshold = lowtreshold#adjustment#value in
 			let high_treshold = hightreshold#adjustment#value in
-			let canny = apply_sobel_mask src
-			  low_treshold high_treshold in
-			save_as canny "canny.bmp";
+			let canny = apply_sobel_mask 
+			  src 
+			  low_treshold 
+			  high_treshold
+			in
+			  save_as canny "canny.bmp";
+			  color_area_out_of_order := true;
 			let mark = Sdlloader.load_image "temp.bmp" in
 			let w, h, p = Sdlvideo.surface_dims mark in
 			for i = 0 to (w-1) do
@@ -1139,22 +1080,11 @@ let settings_quadtree () =
      ~callback:(fun _ ->
        let invert_bool = invert#active in
        refdiv_value := (int_of_float subdiv#adjustment#value);
-       let src = Sdlloader.load_image "temp.bmp" in
-       let dst = Sdlloader.load_image "temp.bmp" in
-       let (w, h, _) = Sdlvideo.surface_dims dst in
-       if (invert_bool) then
-	 for y=0 to (h-1) do
-	   for x=0 to (w-1) do
-	     Sdlvideo.put_pixel_color dst x y Sdlvideo.black
-	   done
-	 done;
-       save_as (quadtree src w
-		  (0, 0, (w-1), (w-1)) !refdiv_value dst invert_bool)
-"temp_qt.bmp";
+       save_as
+	 (QuadTree.quadTree "test.obj" "temp.bmp" !refdiv_value 0 invert_bool) 
+	 "temp_qt.bmp";
        image_box#set_file "temp_qt.bmp";
-       window1#destroy ();
-       generate_cfg ();
-      QuadTree.quadTree "test.obj" "temp.bmp" !refdiv_value 0)
+       window1#destroy ())
 
 let settings_3d () =
   let window1 = GWindow.window
@@ -1255,6 +1185,57 @@ let settings_3d () =
        E3D.yDecal := recup_float yDecal;
        E3D.main "test.obj" open_dialog#filename "temp.bmp" fps_val)
 
+let settings_border src =
+  let window1 = GWindow.window
+    ~title:"Canny settings"
+    ~position:`CENTER
+    ~show:true
+    ~resizable:false
+    ~width:400
+    ~height:100 () in
+  let vbox1 = GPack.vbox
+    ~packing:window1#add () in
+  let hbox1 = GPack.hbox
+    ~packing:vbox1#add () in
+  let _ = GMisc.label
+    ~width:8
+    ~text:"Color Range "
+    ~packing:hbox1#add () in
+  let adjust = GData.adjustment
+    ~lower:0.
+    ~upper:255.
+    ~step_incr:1.
+    ~page_size:0. () in
+  let seuil_slider = GRange.scale `HORIZONTAL
+    ~digits:0
+    ~adjustment:adjust
+    ~packing:hbox1#add () in
+  let bbox1 = GPack.button_box `HORIZONTAL
+    ~layout:`SPREAD
+    ~packing:vbox1#add () in
+  let btn_cancel = GButton.button
+    ~label:"Cancel"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`CLOSE
+    ~packing:btn_cancel#set_image () in
+  let btn_ok = GButton.button
+    ~label:"Apply"
+    ~packing:bbox1#add () in
+  let _ = GMisc.image
+    ~stock:`APPLY
+    ~packing:btn_ok#set_image () in
+    ignore(seuil_slider#adjustment#set_value 30.);
+    ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
+    btn_ok#connect#clicked
+      ~callback:(fun _ ->
+		   save_as 
+		     (print_border 
+			src 
+			(int_of_float seuil_slider#adjustment#value))
+		     "border_tmp.bmp";
+		   image_box#set_file "border_tmp.bmp";
+		   window1#destroy ())
 
 let settings_sampling src =
   let nb_colors = List.length !list_color in
@@ -1337,6 +1318,7 @@ let settings_sampling src =
 let on_reset src =
   list_color := [];
   save_as src "temp.bmp";
+  temp := src;
   image_box#set_file "temp.bmp";
   canny_slider#misc#hide ();
   lbl_canny#misc#hide ();
@@ -1347,6 +1329,7 @@ let on_reset src =
   hbox_canny2#misc#hide ();
   btn_finalize#misc#hide ();
   can_paint := false;
+  color_area_out_of_order := true;
   ()
 
 let on_fill src x y =
@@ -1358,12 +1341,11 @@ let on_fill src x y =
   let key = (r/coef, g/coef, b/coef) in
   if auto_fill#active then
     begin
+      if !color_area_out_of_order then
+	build_color_areas_table !src (int_of_float coef_slider#adjustment#value);
       List.iter
 	(fun (x',y') -> fill canny dst x' y' (cv,cv,cv))
-	(Hashtbl.find_all
-	   (build_color_areas_table !src
-	      (int_of_float coef_slider#adjustment#value))
-	   key)
+	(Hashtbl.find_all !color_areas key)
     end
   else
     fill canny dst x y (cv,cv,cv);
@@ -1372,9 +1354,7 @@ let on_fill src x y =
   ()
 
 let on_border src =
-  save_as (print_border src) "border_tmp.bmp";
-  image_box#set_file "border_tmp.bmp";
-  ()
+  let _ = settings_border src in ()
 
 let on_relief src =
   let _ = settings_sampling src in ()
@@ -1393,64 +1373,102 @@ let on_quadtree () =
 
 let on_3D () =
   let _ = settings_3d () in ()
+
 (* ================================= MAIN =================================== *)
 let sdl_launch () =
   let path = open_dialog#filename in
-  let (w, h, _) = Sdlvideo.surface_dims (Sdlloader.load_image path) in
-  src := Sdlloader.load_image path;
-  image_box#set_ypad 0;
-  image_box#set_file path;
-  save_tmp !src;
-  temp := Sdlloader.load_image "temp.bmp";
-  ignore(btn_border#connect#clicked
-	     ~callback:(fun _ -> on_border (Sdlloader.load_image "temp.bmp")));
-  image_x := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
-    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.width - w)/2;
-  image_w := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
-    (GtkBase.Widget.allocation image_box#as_widget).Gtk.width +
-    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.width - w)/2;
-  image_y := (GtkBase.Widget.allocation image_box#as_widget).Gtk.y +
-    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
-  image_h := (GtkBase.Widget.allocation image_box#as_widget).Gtk.y +
-    (GtkBase.Widget.allocation image_box#as_widget).Gtk.height +
-    ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
-  main_window#event#add [`BUTTON_PRESS];
-  ignore(main_window#event#connect#button_press (
-    fun t -> if (!can_paint) then
-	begin
-	  let x = truncate (GdkEvent.Button.x t)
-	  and y = truncate (GdkEvent.Button.y t) in
-	  if x >= !image_x && y >= !image_y &&
-	    x < !image_w && y < !image_h then
-	    on_fill src (x - !image_x) (y - !image_y);
-	  false
-	end
-      else
-	false
-    ));
-  ignore(btn_finalize#connect#clicked
-    ~callback:(fun _ -> save_tmp
-      (find_no_mark (Sdlloader.load_image "mark.bmp"));
-      image_box#set_file "temp.bmp"; temp := Sdlloader.load_image "temp.bmp" ));
-  if (not(!firstime)) then
-    begin
-      ignore(btn_relief#connect#clicked ~callback:(fun _ -> on_3D ()));
-      ignore(btn_quadtree#connect#clicked ~callback:(fun _ -> on_quadtree ()));
-      ignore(btn_reset#connect#clicked
-	       ~callback:(fun _ -> on_reset !src));
-      ignore(btn_save#connect#clicked
-	       ~callback:(fun _ -> save "resultat.bmp"));
-      ignore(btn_3d#connect#clicked
-	       ~callback:(fun _ -> on_relief !temp));
-      ignore(btn_gaussian#connect#clicked
-	       ~callback:(fun _ -> on_gaussian !temp));
-      ignore(btn_canny#connect#clicked
-	       ~callback:(fun _ -> on_canny !temp));
-      ignore(btn_noise#connect#clicked
-	       ~callback:(fun _ -> on_noise !temp));
-      firstime := true
-    end;
-  on_reset !src
+    try
+      let image = Sdlloader.load_image path in
+      let (w, h, _) = Sdlvideo.surface_dims image in
+      let test_grey = Sdlvideo.create_RGB_surface_format image [] w h in
+      let (r,g,b) = Sdlvideo.get_pixel_color test_grey 0 0 in
+	Sdlvideo.put_pixel_color test_grey 0 0 (255-r,255-g,255-b);
+	if (r,g,b) = Sdlvideo.get_pixel_color test_grey 0 0 then
+	  raise (Sdlloader.SDLloader_exception "Unsupported image format");
+
+	src := image;
+	image_box#set_ypad 0;
+	image_box#set_file path;
+	save_tmp !src;
+	temp := Sdlloader.load_image "temp.bmp";
+	ignore(btn_border#connect#clicked
+		 ~callback:(fun _ -> 
+			      on_border (Sdlloader.load_image "temp.bmp")
+			   ));
+	image_x := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
+	  ((GtkBase.Widget.allocation image_box#as_widget).Gtk.width - w)/2;
+
+	image_w := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
+	  (GtkBase.Widget.allocation image_box#as_widget).Gtk.width +
+	  ((GtkBase.Widget.allocation image_box#as_widget).Gtk.width - w)/2;
+
+	image_y := (GtkBase.Widget.allocation image_box#as_widget).Gtk.y +
+	  ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
+
+	image_h := (GtkBase.Widget.allocation image_box#as_widget).Gtk.y +
+	  (GtkBase.Widget.allocation image_box#as_widget).Gtk.height +
+	  ((GtkBase.Widget.allocation image_box#as_widget).Gtk.height - h)/2;
+
+	main_window#event#add [`BUTTON_PRESS];
+	ignore(main_window#event#connect#button_press (
+		 fun t -> if (!can_paint) then
+		   begin
+		     let x = truncate (GdkEvent.Button.x t)
+		     and y = truncate (GdkEvent.Button.y t) in
+		       if x >= !image_x && y >= !image_y &&
+			 x < !image_w && y < !image_h then
+			   on_fill src (x - !image_x) (y - !image_y);
+		       false
+		   end
+		 else
+		   false
+	       ));
+	ignore(btn_finalize#connect#clicked
+		 ~callback:(fun _ -> 
+			      save_tmp
+				(find_no_mark (Sdlloader.load_image "mark.bmp"));
+			      image_box#set_file "temp.bmp"; 
+			      temp := Sdlloader.load_image "temp.bmp" 
+			   ));
+	if !firstime then
+	  begin
+	    ignore(btn_relief#connect#clicked 
+		     ~callback:(fun _ -> on_3D ()));
+	    ignore(btn_quadtree#connect#clicked 
+		     ~callback:(fun _ -> on_quadtree ()));
+	    ignore(btn_reset#connect#clicked
+		     ~callback:(fun _ -> on_reset !src));
+	    ignore(btn_save#connect#clicked
+		     ~callback:(fun _ -> save "resultat.bmp"));
+	    ignore(btn_3d#connect#clicked
+		     ~callback:(fun _ -> on_relief !temp));
+	    ignore(btn_gaussian#connect#clicked
+		     ~callback:(fun _ -> on_gaussian !temp));
+	    ignore(btn_canny#connect#clicked
+		     ~callback:(fun _ -> on_canny !temp));
+	    ignore(btn_noise#connect#clicked
+		     ~callback:(fun _ -> on_noise !temp));
+	    ignore(coef_slider#connect#value_changed 
+		     ~callback:(fun _ -> color_area_out_of_order := true));
+	    firstime := false
+	  end;
+	on_reset !src
+
+    with _ ->
+      begin
+	let dlg =
+	  (* Error *)
+	  GWindow.message_dialog
+	    ~message:"The choosen file cannot be loaded as a valid image
+ surface.\n\n Check that your image is in RGB mode for example."
+	    ~title:"Invalid format"
+	    ~parent:main_window
+	    ~position:`CENTER_ON_PARENT
+	    ~message_type:`ERROR
+	    ~buttons:GWindow.Buttons.close () in
+	let _ = dlg#run () = `NO in
+	  dlg#destroy ()
+      end
 
 (* Main *)
 

@@ -24,7 +24,7 @@
 (* Map position *)   let xpos = ref 0. and ypos = ref 0. and zpos = ref 0.
 (* Height offset *)  let yDecal = ref 0.
 (* Height scale *)   let yScale = ref 1.
-(* Light position *) let liX= ref (-200.) and liY= ref 100. and liZ= ref (-100.)
+(* Light position *) let liX= ref (-200.) and liY= ref 200. and liZ= ref (-100.)
 (* Normalized light vector *) let (liNX, liNY, liNZ) =
   begin
     let l = sqrt(!liX *. !liX +. !liY *. !liY +. !liZ *. !liZ) in
@@ -182,7 +182,7 @@ class obj3D (nv,nf) = object (self)
     let getLevel x y =
       let (r,g,b) =
 	Sdlvideo.get_pixel_color hmap (int_of_float x) (int_of_float y) in
-	int_of_float (0.3*.(float r) +. 0.59*.(float g) +. 0.11*.(float b))
+	int_of_float ((0.3*.(float r)+.0.59*.(float g)+.0.11*.(float b))*. !yScale)
     in
 (* Decide wheter or not a given point is in the shadow of another blocking
    object like a mountain according to the given heightmap *)

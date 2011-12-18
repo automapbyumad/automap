@@ -18,7 +18,6 @@ OCAMLDEP=ocamldep
 ${PRG}: ${CMX}
 	${OCAMLOPT} $(INCDIRS) -o $@ $(LIBS) ${CMX}   
 
-
 .SUFFIXES: .ml .mli .cmo .cmx .cmi
 
 .ml.cmx:

@@ -44,7 +44,7 @@ val btn_finalize : GButton.button
 val is_color_in_range : int * int * int -> int * int * int -> int -> bool
 val list_invert : 'a list -> 'a list
 exception Too_many_colors
-val print_border : Sdlvideo.surface -> Sdlvideo.surface
+val print_border : Sdlvideo.surface -> int -> Sdlvideo.surface
 val print_grid :
   Sdlvideo.surface -> Sdlvideo.surface -> int -> Sdlvideo.surface
 val write_vertex : float -> float -> float -> out_channel -> unit
@@ -87,7 +87,7 @@ val neighbour_white : Sdlvideo.surface -> int -> int -> int -> int -> bool
 val apply_sobel_mask : Sdlvideo.surface -> float -> float -> Sdlvideo.surface
 val find_no_mark : Sdlvideo.surface -> Sdlvideo.surface
 val build_color_areas_table :
-  Sdlvideo.surface -> int -> (int * int * int, int * int) Hashtbl.t
+  Sdlvideo.surface -> int -> unit
 val is_in_range : int * int * int -> int * int * int -> int -> bool
 val max : (int * int * int, int) Hashtbl.t -> int * int * int
 val unnoise : Sdlvideo.surface -> int -> Sdlvideo.surface
@@ -100,16 +100,6 @@ val n_max : Sdlvideo.surface -> 'a -> int -> int -> (int * int * int) list
 val nearest : int * int * int -> (int * int * int) list -> int * int * int
 val replace_near :
   Sdlvideo.surface -> 'a -> (int * int * int) list -> Sdlvideo.surface
-val vline :
-  Sdlvideo.surface -> Sdlvideo.surface -> int -> int -> int -> bool -> unit
-val hline :
-  Sdlvideo.surface -> Sdlvideo.surface -> int -> int -> int -> bool -> unit
-val is_same_color : Sdlvideo.surface -> int * int * int * int -> bool
-val quadtree :
-  Sdlvideo.surface ->
-  int ->
-  int * int * int * int ->
-  int -> Sdlvideo.surface -> bool -> Sdlvideo.surface
 val fill :
   Sdlvideo.surface ->
   Sdlvideo.surface -> int -> int -> Sdlvideo.color -> unit
