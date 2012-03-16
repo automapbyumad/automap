@@ -1,5 +1,7 @@
 (*------------------------------ 80 characters -------------------------------*)
 
+external generate_texture : string -> unit = "generate"
+
 let _ = GMain.init ()
 
 (*------------------------------ GLOBALS VARS --------------------------------*)
@@ -743,7 +745,7 @@ let fill canny dst x y color =
   let mark = Sdlloader.load_image "mark.bmp" in
   let w, h, _ = Sdlvideo.surface_dims canny in
   let rec fill_canny x y =
-    if x > 0 && x < w - 1 
+    if x > 0 && x < w - 1
       && y > 0 && y < h - 1
       && Sdlvideo.get_pixel_color canny x y = Sdlvideo.black then
 	begin
@@ -979,9 +981,9 @@ let settings_canny src =
   btn_ok#connect#clicked
     ~callback:(fun _ ->	let low_treshold = lowtreshold#adjustment#value in
 			let high_treshold = hightreshold#adjustment#value in
-			let canny = apply_sobel_mask 
-			  src 
-			  low_treshold 
+			let canny = apply_sobel_mask
+			  src
+			  low_treshold
 			  high_treshold
 			in
 			  save_as canny "canny.bmp";
@@ -1081,7 +1083,7 @@ let settings_quadtree () =
        let invert_bool = invert#active in
        refdiv_value := (int_of_float subdiv#adjustment#value);
        save_as
-	 (QuadTree.quadTree "test.obj" "temp.bmp" !refdiv_value 0 invert_bool) 
+	 (QuadTree.quadTree "test.obj" "temp.bmp" !refdiv_value 0 invert_bool)
 	 "temp_qt.bmp";
        image_box#set_file "temp_qt.bmp";
        window1#destroy ())
@@ -1229,9 +1231,9 @@ let settings_border src =
     ignore(btn_cancel#connect#clicked ~callback:window1#destroy);
     btn_ok#connect#clicked
       ~callback:(fun _ ->
-		   save_as 
-		     (print_border 
-			src 
+		   save_as
+		     (print_border
+			src
 			(int_of_float seuil_slider#adjustment#value))
 		     "border_tmp.bmp";
 		   image_box#set_file "border_tmp.bmp";
@@ -1392,7 +1394,7 @@ let sdl_launch () =
 	save_tmp !src;
 	temp := Sdlloader.load_image "temp.bmp";
 	ignore(btn_border#connect#clicked
-		 ~callback:(fun _ -> 
+		 ~callback:(fun _ ->
 			      on_border (Sdlloader.load_image "temp.bmp")
 			   ));
 	image_x := (GtkBase.Widget.allocation image_box#as_widget).Gtk.x +
@@ -1424,17 +1426,18 @@ let sdl_launch () =
 		   false
 	       ));
 	ignore(btn_finalize#connect#clicked
-		 ~callback:(fun _ -> 
+		 ~callback:(fun _ ->
 			      save_tmp
 				(find_no_mark (Sdlloader.load_image "mark.bmp"));
-			      image_box#set_file "temp.bmp"; 
-			      temp := Sdlloader.load_image "temp.bmp" 
+			      image_box#set_file "temp.bmp";
+			      temp := Sdlloader.load_image "temp.bmp";
+			      generate_texture("temp.bmp")
 			   ));
 	if !firstime then
 	  begin
-	    ignore(btn_relief#connect#clicked 
+	    ignore(btn_relief#connect#clicked
 		     ~callback:(fun _ -> on_3D ()));
-	    ignore(btn_quadtree#connect#clicked 
+	    ignore(btn_quadtree#connect#clicked
 		     ~callback:(fun _ -> on_quadtree ()));
 	    ignore(btn_reset#connect#clicked
 		     ~callback:(fun _ -> on_reset !src));
@@ -1448,7 +1451,7 @@ let sdl_launch () =
 		     ~callback:(fun _ -> on_canny !temp));
 	    ignore(btn_noise#connect#clicked
 		     ~callback:(fun _ -> on_noise !temp));
-	    ignore(coef_slider#connect#value_changed 
+	    ignore(coef_slider#connect#value_changed
 		     ~callback:(fun _ -> color_area_out_of_order := true));
 	    firstime := false
 	  end;

@@ -16,7 +16,7 @@ OCAMLOPT=ocamlopt
 OCAMLC=ocamlc
 OCAMLDEP=ocamldep
 ${PRG}: ${CMX}
-	${OCAMLOPT} $(INCDIRS) -o $@ $(LIBS) ${CMX}   
+	${OCAMLOPT} $(INCDIRS) -o $@ $(LIBS) main.o ${CMX}
 
 .SUFFIXES: .ml .mli .cmo .cmx .cmi
 
@@ -30,9 +30,9 @@ ${PRG}: ${CMX}
 	${OCAMLOPT} $(INCDIRS) -c $< $(LIBS)
 
 clean::
-	rm -f *.cm? *.o *~
+	rm -f *.cm? *~
 	rm -f ${PRG} ${PRG}.byte
-	rm -f ${SOURCES:ml=cm?} *.o *~ automap temp.bmp border_tmp.bmp temp_grid.bmp canny.bmp mark.bmp cfg.txt test.obj resultat.bmp temp_qt.bmp \#*\#
+	rm -f ${SOURCES:ml=cm?} ${ML:ml=o} *~ automap temp.bmp border_tmp.bmp temp_grid.bmp canny.bmp mark.bmp cfg.txt test.obj resultat.bmp temp_qt.bmp generate_texture.bmp \#*\#
 
 
 fullclean:: clean
