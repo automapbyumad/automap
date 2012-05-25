@@ -1,24 +1,37 @@
 # Makefile generique.
 # Nom du programme
 PRG= automap
+
+# Fichier C du programme
+SRC= generate.c
 # Fichiers ML du programme
 ML= vector.ml quadTree.ml e3D.ml automap.ml
-MLI= ${ML:.ml=.mli}
+
+# Flags
+CFLAGS= -W -Wall -Werror -ansi -pedantic -lSDL -lSDL_image
 LIBS= GL.cmxa Glu.cmxa bigarray.cmxa VBO.cmxa vertArray.cmxa genimg_loader.cmxa sdl.cmxa sdlloader.cmxa str.cmxa unix.cmxa lablgtk.cmxa
 INCDIRS= -I +sdl -I +glMLite -I +lablgtk2
 
 # Les listes de fichiers à produire
+OBJ=${SRC:.c=.o}
+MLI=${ML:.ml=.mli}
 CMO=${ML:.ml=.cmo}
 CMX=${ML:.ml=.cmx}
 CMI=${MLI:.mli=.cmi}
+
 # Les compilateurs
+CC=gcc
 OCAMLOPT=ocamlopt
 OCAMLC=ocamlc
 OCAMLDEP=ocamldep
-${PRG}: ${CMX}
-	${OCAMLOPT} $(INCDIRS) -o $@ $(LIBS) main.o ${CMX}
 
-.SUFFIXES: .ml .mli .cmo .cmx .cmi
+${PRG}: ${OBJ} ${CMX}
+	${OCAMLOPT} $(INCDIRS) -o $@ $(LIBS) ${OBJ} ${CMX}
+
+.SUFFIXES: .c .o .ml .mli .cmo .cmx .cmi
+
+.c.o:
+	${CC} ${CFLAGS} -c $<
 
 .ml.cmx:
 	${OCAMLOPT} $(INCDIRS) -c $< $(LIBS)
@@ -30,7 +43,7 @@ ${PRG}: ${CMX}
 	${OCAMLOPT} $(INCDIRS) -c $< $(LIBS)
 
 clean::
-	rm -f *.cm? *~
+	rm -f *.cm? *~ *.o
 	rm -f ${PRG} ${PRG}.byte
 	rm -f ${SOURCES:ml=cm?} ${ML:ml=o} *~ automap temp.bmp border_tmp.bmp temp_grid.bmp canny.bmp mark.bmp cfg.txt test.obj resultat.bmp temp_qt.bmp generate_texture.bmp \#*\#
 
