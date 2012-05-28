@@ -1185,7 +1185,7 @@ let settings_3d () =
        E3D.ortho := ortho#active;
        E3D.yScale := recup_float yScale;
        E3D.yDecal := recup_float yDecal;
-       E3D.main "test.obj" open_dialog#filename "temp.bmp" fps_val)
+       E3D.main "test.obj" "generate_texture.bmp" "temp.bmp" fps_val) (* open_dialog#filename *)
 
 let settings_border src =
   let window1 = GWindow.window

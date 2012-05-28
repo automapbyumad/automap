@@ -3,7 +3,7 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_image.h>
 
-#define NB_TEXTURES 3
+#define NB_TEXTURES 5
 
 typedef struct s_pixel *Pixel;
 
@@ -107,42 +107,79 @@ void putPixel(SDL_Surface *image, int x, int y, Pixel pixel)
 
 void generateTextureRate(float *rate, Uint8 height)
 {
-  float step[] = { 60.0f, 130.0f, 180.0f, 220.0f };
+  float step[] = { 20.0, 50.0, 80.0, 110.0, 140.0, 170.0, 200.0, 230.0 };
 
-  /* Only grass */
   if (height < step[0])
   {
-    rate[0] = 1.0f;
-    rate[1] = 0.0f;
-    rate[2] = 0.0f;
+    rate[0] = 1.0;
+    rate[1] = 0.0;
+    rate[2] = 0.0;
+    rate[3] = 0.0;
+    rate[4] = 0.0;
   }
-  /* Mix between grass and rock */
   else if(height < step[1])
   {
-    rate[0] = 1.0f - (height - step[0]) / (step[1] - step[0]);
+    rate[0] = 1.0 - (height - step[0]) / (step[1] - step[0]);
     rate[1] = (height - step[0]) / (step[1] - step[0]);
-    rate[2] = 0.0f;
+    rate[2] = 0.0;
+    rate[3] = 0.0;
+    rate[4] = 0.0;
   }
-  /* Only rock */
   else if(height < step[2])
   {
-    rate[0] = 0.0f;
-    rate[1] = 1.0f;
-    rate[2] = 0.0f;
+    rate[0] = 0.0;
+    rate[1] = 1.0;
+    rate[2] = 0.0;
+    rate[3] = 0.0;
+    rate[4] = 0.0;
   }
-  /* Mix between rock and snow */
   else if(height < step[3])
   {
-    rate[0] = 0.0f;
-    rate[1] = 1.0f - (height - step[2]) / (step[3] - step[2]);
+    rate[0] = 0.0;
+    rate[1] = 1.0 - (height - step[2]) / (step[3] - step[2]);
     rate[2] = (height - step[2]) / (step[3] - step[2]);
+    rate[3] = 0.0;
+    rate[4] = 0.0;
   }
-  /* Only snow */
+  else if(height < step[4])
+  {
+    rate[0] = 0.0;
+    rate[1] = 0.0;
+    rate[2] = 1.0;
+    rate[3] = 0.0;
+    rate[4] = 0.0;
+  }
+  else if(height < step [5])
+  {
+    rate[0] = 0.0;
+    rate[1] = 0.0;
+    rate[2] = 1.0 - (height - step[4]) / (step[5] - step[4]);
+    rate[3] = (height - step[4]) / (step[5] - step[4]);
+    rate[4] = 0.0;
+  }
+  else if(height < step[6])
+  {
+    rate[0] = 0.0;
+    rate[1] = 0.0;
+    rate[2] = 0.0;
+    rate[3] = 1.0;
+    rate[4] = 0.0;
+  }
+  else if(height < step[7])
+  {
+    rate[0] = 0.0;
+    rate[1] = 0.0;
+    rate[2] = 0.0;
+    rate[3] = 1.0 - (height - step[6]) / (step[7] - step[6]);
+    rate[4] = (height - step[6]) / (step[7] - step[6]);
+  }
   else
   {
-    rate[0] = 0.0f;
-    rate[1] = 0.0f;
-    rate[2] = 1.0f;
+    rate[0] = 0.0;
+    rate[1] = 0.0;
+    rate[2] = 0.0;
+    rate[3] = 0.0;
+    rate[4] = 1.0;
   }
 }
 
@@ -194,9 +231,11 @@ void generate(char* str)
 
   image = IMG_Load(str);
 
-  imgTex[0] = IMG_Load("Textures/grass.jpg");
-  imgTex[1] = IMG_Load("Textures/rock.jpg");
-  imgTex[2] = IMG_Load("Textures/snow.jpg");
+  imgTex[0] = IMG_Load("Textures/underwater.jpg");
+  imgTex[1] = IMG_Load("Textures/water.jpg");
+  imgTex[2] = IMG_Load("Textures/grass.jpg");
+  imgTex[3] = IMG_Load("Textures/rock.jpg");
+  imgTex[4] = IMG_Load("Textures/snow.jpg");
 
   imgtmp = SDL_CreateRGBSurface(SDL_HWSURFACE, image->w, image->h, 32, 0, 0, 0,
 				0);
